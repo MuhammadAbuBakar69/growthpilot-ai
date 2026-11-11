@@ -10,6 +10,28 @@ tracks what you actually shipped, and reports that separate what was **measured*
 
 </div>
 
+## Live
+
+- **App:** deploy target is Vercel (`growthpilot-ai`). Import the repo at vercel.com/new and set the
+  three environment variables below; the free tier is enough.
+- **Database:** Supabase project `wndscbclaxiaenkzyuap` (ap-south-1) — 26 tables, RLS on all of them,
+  95 policies, `create_workspace()` and the `my_workspaces` view applied.
+
+Vercel hosts the app; it does not store the data. Supabase is the database, and it is the reason a
+stranger's session can read nothing: row-level security runs in Postgres, not in the UI.
+
+### Verified end to end (2026-11-11)
+
+| Check | Result |
+| --- | --- |
+| Sign-up creates a mirrored `app_users` row | pass |
+| `create_workspace()` creates org + owner membership + profile in one transaction | pass |
+| Owner sees their workspace | 1 row |
+| A second signed-in user sees the same tables | 0 rows |
+| Cross-tenant insert | rejected, 403 |
+| Cross-tenant read of a known profile id | empty |
+| Anonymous read of `business_profiles` | empty |
+
 ## Status: Phase 1 of 12, and nothing is pretending otherwise
 
 This repository is at the end of the architecture phase. What exists today is the part that is
