@@ -1,121 +1,73 @@
-<div align="center">
+# GrowthPilot
 
-# GrowthPilot AI
+A growth analysis for a real business: a scored diagnosis, findings that state their evidence, and a
+30/60/90 plan. It opens straight into the app. **No account, no sign-in, no server, no database.**
 
-**An AI growth strategist that has to show its evidence.**
+Live: https://muhammadabubakar69.github.io/growthpilot-ai/
 
-Website and business analysis, a ten-agent strategy pipeline, a 30/60/90 roadmap, an action centre that
-tracks what you actually shipped, and reports that separate what was **measured** from what the model
-**hypothesised**.
+## Why it has no backend
 
-</div>
+An earlier version of this project was a multi-tenant SaaS on Supabase with row-level security, auth
+middleware and a Vercel deployment. It worked, and it was the wrong shape for the job: a business owner
+had to sign up, confirm an email and create a workspace before seeing anything, and their answers then
+lived on a server that had to be secured, migrated and paid for.
 
-## Live
+This version keeps the part that matters - the analysis - and removes the part that was friction. The
+app is a single static page. Your business is stored in your own browser, and the only network request
+the page ever makes is loading its own files.
 
-- **App:** deploy target is Vercel (`growthpilot-ai`). Import the repo at vercel.com/new and set the
-  three environment variables below; the free tier is enough.
-- **Database:** Supabase project `wndscbclaxiaenkzyuap` (ap-south-1) — 26 tables, RLS on all of them,
-  95 policies, `create_workspace()` and the `my_workspaces` view applied.
+## The three rules the engine follows
 
-Vercel hosts the app; it does not store the data. Supabase is the database, and it is the reason a
-stranger's session can read nothing: row-level security runs in Postgres, not in the UI.
+1. **Nothing is invented.** An unanswered dimension is reported as `unavailable`, never as zero, and no
+   finding is built on a question you skipped. The overall score renormalises over what you actually
+   answered, and shows how complete that is.
+2. **Every number shows its formula.** A dimension score is `earned / possible × 100` over that
+   dimension's answers; the overall score is the weighted sum of dimension scores, weights in
+   `lib/engine.ts` (`positioning 15, offer 15, conversion 20, content 15, acquisition 15, trust 10,
+   measurement 10`). You can disagree with the arithmetic instead of with an oracle.
+3. **Every claim carries its evidence class.** `measured` comes from HTML you supplied and parses the
+   same way every time; `inferred` comes from your answers; `hypothesis` is never shown as a finding;
+   `unavailable` means the data does not exist here.
 
-### Verified end to end (2026-11-11)
+## Run it
 
-| Check | Result |
-| --- | --- |
-| Sign-up creates a mirrored `app_users` row | pass |
-| `create_workspace()` creates org + owner membership + profile in one transaction | pass |
-| Owner sees their workspace | 1 row |
-| A second signed-in user sees the same tables | 0 rows |
-| Cross-tenant insert | rejected, 403 |
-| Cross-tenant read of a known profile id | empty |
-| Anonymous read of `business_profiles` | empty |
+```bash
+npm install
+npm run dev      # http://localhost:3000
+npm test         # 19 tests: engine maths + a full click-through of the app
+npm run build    # static export into out/
+```
 
-## Status: Phase 1 of 12, and nothing is pretending otherwise
+`npm run build` writes plain files. `NEXT_PUBLIC_BASE_PATH=/growthpilot-ai npm run build` produces the
+same site ready for a project page; that is what CI does.
 
-This repository is at the end of the architecture phase. What exists today is the part that is
-expensive to change later and cheap to review now:
+## What it does
 
-| piece | state |
-| :--- | :--- |
-| Database schema, 26 tables, enums, indexes | written, parses as PostgreSQL, pushed |
-| Tenant isolation (RLS on 24 tenant tables) | written, statically verified in CI |
-| Architecture, PRD, agent contracts, security model, roadmap | written |
-| Application code | **not started** (Phase 2) |
-| Live deployment | **not deployed** |
+- **Questions** across seven dimensions, each answer worth 0-3 points and each dimension weighted.
+- **Overview**: the score, its band, where the next points are cheapest (weight × distance from 100).
+- **Findings**: 21 rules over your answers plus 7 over parsed HTML - severity, effort, and the score
+  each one unlocks, ordered by that number.
+- **Plan**: small effort in 30 days, medium in 60, large bets in 90.
+- **Website**: paste your page source (`Ctrl+U`) and it is parsed in the tab: title, meta description,
+  H1s, word count, forms, contact routes, images missing alt text, viewport tag, social links.
+- **Data**: everything exportable as one JSON file and re-importable, because the browser is the only
+  copy.
 
-There is no dashboard to click yet, and no screenshot of one. Anything else would be a mock-up, and a
-mock-up is exactly the failure mode this project's own rules forbid.
+## Limitations, stated plainly
 
-## The one design decision everything else follows
-
-A growth recommendation is only worth the evidence behind it. So evidence has a class, and it is
-stored, not implied:
-
-- `measured` - we fetched it and can cite the URL or API response.
-- `inferred` - derived from measurements by a stated method (a score with its formula attached).
-- `hypothesis` - the model's reasoning, useful and unproven.
-- `unavailable` - the check could not run; it is shown as unavailable, never as a zero.
-
-That is enforced in three places: the `evidence_class` enum on `findings`, `scores` and
-`recommendations`; the agent output schemas; and the report renderer, which will not print a
-hypothesis in a findings section.
+- There is no crawl. A page rendered by JavaScript looks thinner than it is, because the parsing works
+  on HTML you paste, and the findings say so where it matters.
+- Findings are rule-based, not model-generated. That is deliberate: a rule you can read and argue with
+  beats a paragraph you cannot reproduce.
+- Data lives in one browser. Clearing site data deletes it; export first.
 
 ## Layout
 
 ```
-db/migrations/0001_init.sql   the schema: identity, business profile, audits, strategy, tasks,
-                              leads, agents, reports, ops
-db/policies/0002_rls.sql      row-level security, explicit per table
-docs/                         architecture, PRD, schema notes, API, agents, security, roadmap
-scripts/check_schema.py       CI gate: parse both SQL files, prove RLS coverage
+app/            page shell, one client component tree, no server routes
+components/     Overview, Findings, Roadmap, Questions, Website, DataVault, Setup
+lib/engine.ts   scoring, findings and roadmap - pure functions
+lib/storage.ts  IndexedDB with a localStorage fallback, plus export/import
+lib/*.test.*    19 tests
+docs/           ENGINE.md (the model), ARCHITECTURE.md (the decisions)
 ```
-
-## Run the checks
-
-```bash
-python -m pip install pglast
-python scripts/check_schema.py
-# check_schema: 59 statements, 26 tables, 24 tenant tables, all RLS-enforced
-```
-
-## What Phase 2 delivers
-
-Next.js app shell with auth, organisation creation, and the onboarding flow that writes a
-`business_profiles` row, then one real website audit against a live URL. Nothing in that list needs a
-model call, which is deliberate: the plumbing has to be provably correct before an LLM is allowed to
-write into it.
-
-The full sequence, with exit criteria per phase, is in [docs/IMPLEMENTATION_ROADMAP.md](docs/IMPLEMENTATION_ROADMAP.md).
-
-## Licence
-
-Proprietary. All rights reserved.
-
-### Deploy checklist (Vercel)
-
-1. Project connected to `MuhammadAbuBakar69/growthpilot-ai`, Production Branch = `main`.
-2. Environment variables (Production **and** Preview):
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-3. Push to `main` — that is what creates the production deployment; connecting the repo alone does not.
-4. Open `/api/health`. It answers `200 {"ok":true,"database":"reachable"}` when the build is wired
-   correctly, and names the missing variable when it is not. That is the first thing to check after a
-   deploy, before clicking around the UI.
-
-### Which database is the deployment using?
-
-`GET /api/health` reports `projectRef`. That field exists because a deployment can be wired to a
-Supabase project this repo cannot reach: Vercel's Supabase integration provisions a project in its own
-account and injects `NEXT_PUBLIC_SUPABASE_*` itself. A fresh integration project has no tables, so the
-dashboard fails with `Could not find the table 'public.my_workspaces'` while every other check looks
-healthy.
-
-Fix, in order of preference:
-
-1. Point the deployment at this repo's project (fully migrated, 26 tables, 95 policies, isolation
-   verified): set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in Vercel, redeploy,
-   then confirm `projectRef` in `/api/health`.
-2. Keep the integration's project: paste `db/apply_all.sql` into its SQL editor once. That file is
-   generated from the migrations by `scripts/gen_apply_all.py`, and CI fails if it drifts.

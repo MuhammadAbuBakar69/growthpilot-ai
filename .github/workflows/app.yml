@@ -4,9 +4,19 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,20 +26,35 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx tsc --noEmit
-      - name: Build (placeholder Supabase env)
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
-        run: npm run build
+      - run: npm test
 
-  schema:
+  build:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-node@v4
         with:
-          python-version: "3.12"
-      - run: pip install pglast
-      - run: python scripts/check_schema.py
-      - run: python scripts/gen_apply_all.py && git diff --exit-code db/apply_all.sql
-      - run: python scripts/check_docs.py
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Project pages live under /<repo>, so the base path is part of the build, not a runtime setting:
+      # a static export has no server to rewrite URLs.
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_BASE_PATH: /${{ github.event.repository.name }}
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: out
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
