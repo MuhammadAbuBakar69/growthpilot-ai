@@ -9,7 +9,7 @@ beforeEach(() => localStorage.clear());
 describe("first run", () => {
   it("opens straight into setting up a business, with no sign-in anywhere", async () => {
     render(<Page />);
-    expect(await screen.findByText(/What business are we growing/i)).toBeTruthy();
+    expect(await screen.findByText(/Find what is limiting this business/i)).toBeTruthy();
     // The whole pitch: no account wall.
     expect(screen.queryByText(/sign in/i)).toBeNull();
     expect(screen.queryByText(/password/i)).toBeNull();
@@ -48,6 +48,32 @@ describe("first run", () => {
 
     await user.click(screen.getByRole("button", { name: "Plan" }));
     await waitFor(() => expect(document.querySelectorAll(".stage").length).toBe(3));
+  });
+
+  it("contradicts a claim the pasted page does not support", async () => {
+    const user = userEvent.setup();
+    render(<Page />);
+    await user.type(await screen.findByPlaceholderText("Stitch Co"), "Stitch Co");
+    await user.click(screen.getByRole("button", { name: /start analysis/i }));
+
+    // Claim strong testimonials, then supply a page with none.
+    await user.click(await screen.findByRole("button", { name: "Questions" }));
+    const group = Array.from(document.querySelectorAll(".qgroup")).find((g) =>
+      /Trust/i.test(g.querySelector("summary")?.textContent ?? ""),
+    ) as HTMLElement;
+    const options = within(group).getAllByRole("button", { name: /^Yes, clearly$/ });
+    await user.click(options[0]);
+    await waitFor(() => expect(group.querySelectorAll('.opt[aria-pressed="true"]').length).toBe(1));
+
+    await user.click(screen.getByRole("button", { name: "Site audit" }));
+    const box = await screen.findByPlaceholderText(/paste your page source/i);
+    await user.click(box);
+    await user.paste("<html><head><title>Stitch Co</title></head><body><h1>Embroidery</h1><p>We embroider uniforms.</p></body></html>");
+    await user.click(screen.getByRole("button", { name: /read the page/i }));
+
+    // The contradiction panel is the product: claim vs measured page.
+    expect(await screen.findByText(/Where your answers and your page disagree/i)).toBeTruthy();
+    expect(screen.getAllByText(/You said testimonials exist/i).length).toBeGreaterThan(0);
   });
 
   it("keeps skipped questions as missing rather than scoring them zero", async () => {

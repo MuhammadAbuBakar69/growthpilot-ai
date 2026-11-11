@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#08090b",
+  themeColor: "#f7f7f4",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -18,7 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <noscript>
-          <div style={{ padding: "18px 20px", borderBottom: "1px solid #1e222b", color: "#e9ecf2", fontFamily: "ui-monospace, monospace", fontSize: 13 }}>
+          <div style={{ padding: "18px 20px", borderBottom: "1px solid #1e222b", color: "#e9ecf2", fontFamily: "ui-monospace, monospace", fontSize: 13, background: "#fff" }}>
             GrowthPilot runs entirely in your browser, so it needs JavaScript. Nothing is uploaded either
             way: there is no server to send it to.
           </div>

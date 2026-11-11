@@ -1,11 +1,15 @@
 "use client";
 
+import { crossCheck } from "@/lib/audit";
 import { DIMENSIONS, leverage, scoreProfile, type Profile } from "@/lib/engine";
 import { Empty, Meter, Panel, Tag, toneForScore } from "./ui";
 
-export default function Overview({ profile, onAnswer }: { profile: Profile; onAnswer: () => void }) {
+export default function Overview({
+  profile, onAnswer, onOpenSite,
+}: { profile: Profile; onAnswer: () => void; onOpenSite: () => void }) {
   const score = scoreProfile(profile);
   const top = leverage(profile).slice(0, 3);
+  const checks = crossCheck(profile);
   const scored = score.dimensions.filter((d) => d.score !== null);
 
   return (
@@ -48,6 +52,30 @@ export default function Overview({ profile, onAnswer }: { profile: Profile; onAn
           </>
         )}
       </Panel>
+
+      {checks && checks.contradictions.length > 0 ? (
+        <Panel
+          title="Your page disagrees with your answers"
+          hint={`${checks.contradictions.length} of ${checks.checked} claims checked`}
+          actions={<button className="btn btn-sm" onClick={onOpenSite}>Open site audit</button>}
+        >
+          <p className="lede-sm">
+            You answered these as true; the page you supplied does not support them. That is either work
+            nobody can see, or a claim worth correcting. Both are cheaper to fix than losing the visitor.
+          </p>
+          <div className="findings" style={{ marginTop: 10 }}>
+            {checks.contradictions.map((c) => (
+              <div className="finding" key={c.id}>
+                <div className="finding-top">
+                  <span className="sev-dot" data-sev={c.severity} />
+                  <h3 style={{ fontSize: 13.5 }}>{c.claim}</h3>
+                  <div className="finding-meta"><span>page: {c.page}</span></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      ) : null}
 
       <Panel title="Dimensions" hint="score = earned ÷ possible × 100">
         <div className="dims">

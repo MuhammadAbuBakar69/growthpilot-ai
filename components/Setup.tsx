@@ -29,11 +29,12 @@ export default function Setup({
 
   return (
     <div className="setup">
-      <h1>What business are we growing?</h1>
+      <h1>Find what is limiting this business</h1>
       <p className="lede">
-        No account, no sign-in. This runs in your browser and the business stays on this device until you
-        export it. Fill in what you know, skip what you do not: skipped questions are reported as missing,
-        never counted as a failure.
+        You get a scored diagnosis, the reasons behind it ranked by what each one is worth, and a 30/60/90
+        plan. No account and no sign-in: this runs in your browser and the business stays on this device
+        until you export it. Skip any question you cannot answer; missing is reported as missing, never as
+        a failure.
       </p>
 
       <form

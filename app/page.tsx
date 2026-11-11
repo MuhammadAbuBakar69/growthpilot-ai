@@ -7,19 +7,20 @@ import Findings from "@/components/Findings";
 import Overview from "@/components/Overview";
 import Questions from "@/components/Questions";
 import Roadmap from "@/components/Roadmap";
+import SiteAudit from "@/components/SiteAudit";
 import Setup from "@/components/Setup";
 import Website from "@/components/Website";
 import { scoreProfile, type Profile, type SiteFacts } from "@/lib/engine";
 import { deleteProfile, listProfiles, parseSnapshot, saveProfile, toSnapshot } from "@/lib/storage";
 
-type Tab = "overview" | "findings" | "roadmap" | "questions" | "website" | "data";
+type Tab = "overview" | "findings" | "roadmap" | "questions" | "site" | "data";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "findings", label: "Findings" },
   { id: "roadmap", label: "Plan" },
   { id: "questions", label: "Questions" },
-  { id: "website", label: "Website" },
+  { id: "site", label: "Site audit" },
   { id: "data", label: "Data" },
 ];
 
@@ -186,19 +187,21 @@ export default function Page() {
               </div>
             ) : null}
 
-            {active.website && !active.site ? (
+            {!active.site ? (
               <div className="banner">
                 <span>
-                  You gave a website but no page has been read yet. Paste its source in <b>Website</b> to add
-                  measured facts to this analysis.
+                  No page has been read yet, so this analysis is only what you told us. Paste your page source
+                  in <b>Site audit</b> to check those answers against the page itself.
                 </span>
+                <span className="right" />
+                <button className="btn btn-sm" onClick={() => setTab("site")}>Open site audit</button>
               </div>
             ) : null}
 
             {tab === "overview" ? (
               <>
                 <div className="cols">
-                  <Overview profile={active} onAnswer={() => setTab("questions")} />
+                  <Overview profile={active} onAnswer={() => setTab("questions")} onOpenSite={() => setTab("site")} />
                   <div className="stack">
                     <Findings profile={active} onQuestions={() => setTab("questions")} />
                   </div>
@@ -210,7 +213,12 @@ export default function Page() {
             {tab === "findings" ? <Findings profile={active} onQuestions={() => setTab("questions")} /> : null}
             {tab === "roadmap" ? <Roadmap profile={active} onQuestions={() => setTab("questions")} /> : null}
             {tab === "questions" ? <Questions profile={active} onAnswer={answer} /> : null}
-            {tab === "website" ? <Website profile={active} onFacts={(facts: SiteFacts | null) => patch({ site: facts })} /> : null}
+            {tab === "site" ? (
+              <div className="stack">
+                <Website profile={active} onFacts={(facts: SiteFacts | null) => patch({ site: facts })} />
+                <SiteAudit profile={active} onFixAnswers={() => setTab("questions")} />
+              </div>
+            ) : null}
             {tab === "data" ? (
               <DataVault
                 profiles={profiles}
