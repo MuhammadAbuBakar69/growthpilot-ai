@@ -25,7 +25,7 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 export default function Page() {
-  const [profiles, setProfiles] = useState<Profile[] | null>(null);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("overview");
   const [note, setNote] = useState<{ tone: "ok" | "bad" | "warn"; text: string } | null>(null);
@@ -42,7 +42,7 @@ export default function Page() {
   }, [refresh]);
 
   const active = useMemo(
-    () => profiles?.find((p) => p.id === activeId) ?? profiles?.[0] ?? null,
+    () => profiles.find((p) => p.id === activeId) ?? profiles[0] ?? null,
     [profiles, activeId],
   );
 
@@ -50,7 +50,7 @@ export default function Page() {
     (changes: Partial<Profile>) => {
       if (!active) return;
       const next: Profile = { ...active, ...changes, updatedAt: new Date().toISOString() };
-      setProfiles((prev) => (prev ?? []).map((p) => (p.id === next.id ? next : p)));
+      setProfiles((prev) => prev.map((p) => (p.id === next.id ? next : p)));
       void saveProfile(next);
     },
     [active],
@@ -80,7 +80,7 @@ export default function Page() {
 
   const remove = useCallback(
     async (id: string) => {
-      const target = profiles?.find((p) => p.id === id);
+      const target = profiles.find((p) => p.id === id);
       if (!target) return;
       if (typeof window !== "undefined" && !window.confirm(`Delete “${target.name}” from this device?`)) return;
       await deleteProfile(id);
@@ -92,7 +92,7 @@ export default function Page() {
   );
 
   const exportAll = useCallback(() => {
-    if (!profiles?.length) return;
+    if (!profiles.length) return;
     const blob = new Blob([JSON.stringify(toSnapshot(profiles), null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -121,14 +121,6 @@ export default function Page() {
   );
 
   const score = active ? scoreProfile(active) : null;
-
-  if (profiles === null) {
-    return (
-      <div className="wrap main">
-        <div className="empty">Opening your workspace…</div>
-      </div>
-    );
-  }
 
   return (
     <>
