@@ -54,10 +54,20 @@ export async function GET() {
   const authService = auth !== null && auth < 500 ? "up" : "down";
   const ok = postgrest === "up" && authService === "up";
 
+  // The project ref is part of every request URL anyway; reporting it turns "the app is talking to the
+  // wrong database" from a guess into a one-line answer.
+  let projectRef: string | null = null;
+  try {
+    projectRef = new URL(url).hostname.split(".")[0];
+  } catch {
+    projectRef = null;
+  }
+
   return NextResponse.json(
     {
       ok,
       configured: true,
+      projectRef,
       postgrest,
       auth: authService,
       // Surfacing the codes makes the next false negative diagnosable in one look.
