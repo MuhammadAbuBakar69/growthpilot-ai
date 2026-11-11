@@ -92,3 +92,14 @@ The full sequence, with exit criteria per phase, is in [docs/IMPLEMENTATION_ROAD
 ## Licence
 
 Proprietary. All rights reserved.
+
+### Deploy checklist (Vercel)
+
+1. Project connected to `MuhammadAbuBakar69/growthpilot-ai`, Production Branch = `main`.
+2. Environment variables (Production **and** Preview):
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+3. Push to `main` — that is what creates the production deployment; connecting the repo alone does not.
+4. Open `/api/health`. It answers `200 {"ok":true,"database":"reachable"}` when the build is wired
+   correctly, and names the missing variable when it is not. That is the first thing to check after a
+   deploy, before clicking around the UI.
