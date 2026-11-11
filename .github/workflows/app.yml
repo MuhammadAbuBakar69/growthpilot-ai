@@ -31,4 +31,5 @@ jobs:
           python-version: "3.12"
       - run: pip install pglast
       - run: python scripts/check_schema.py
+      - run: python scripts/gen_apply_all.py && git diff --exit-code db/apply_all.sql
       - run: python scripts/check_docs.py

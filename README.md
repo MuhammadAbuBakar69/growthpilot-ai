@@ -103,3 +103,19 @@ Proprietary. All rights reserved.
 4. Open `/api/health`. It answers `200 {"ok":true,"database":"reachable"}` when the build is wired
    correctly, and names the missing variable when it is not. That is the first thing to check after a
    deploy, before clicking around the UI.
+
+### Which database is the deployment using?
+
+`GET /api/health` reports `projectRef`. That field exists because a deployment can be wired to a
+Supabase project this repo cannot reach: Vercel's Supabase integration provisions a project in its own
+account and injects `NEXT_PUBLIC_SUPABASE_*` itself. A fresh integration project has no tables, so the
+dashboard fails with `Could not find the table 'public.my_workspaces'` while every other check looks
+healthy.
+
+Fix, in order of preference:
+
+1. Point the deployment at this repo's project (fully migrated, 26 tables, 95 policies, isolation
+   verified): set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in Vercel, redeploy,
+   then confirm `projectRef` in `/api/health`.
+2. Keep the integration's project: paste `db/apply_all.sql` into its SQL editor once. That file is
+   generated from the migrations by `scripts/gen_apply_all.py`, and CI fails if it drifts.
