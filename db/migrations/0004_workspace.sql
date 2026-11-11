@@ -47,10 +47,18 @@ revoke all on function create_workspace(text, text, text, text, text, text[], te
 grant execute on function create_workspace(text, text, text, text, text, text[], text) to authenticated;
 
 -- The dashboard's single read: this user's workspaces with the profile attached.
-create or replace view my_workspaces as
+-- The view is created after 0002's blanket grant loop, so it needs its own privileges: without them
+-- PostgREST hides it from the schema cache and the app fails with
+-- "Could not find the table 'public.my_workspaces'". security_invoker keeps the caller's RLS in force
+-- on top of the explicit membership filter, so the view cannot widen anyone's visibility.
+create or replace view my_workspaces with (security_invoker = true) as
   select o.id as org_id, o.name as org_name, o.plan, m.role,
          p.id as profile_id, p.name as business_name, p.industry, p.website_url, p.description
   from organizations o
   join org_members m on m.org_id = o.id and m.user_id = app_current_user()
   left join business_profiles p on p.org_id = o.id and p.deleted_at is null
   where o.deleted_at is null;
+
+revoke all on my_workspaces from anon;
+grant select on my_workspaces to authenticated, service_role;
+notify pgrst, 'reload schema';
