@@ -5,7 +5,7 @@
  * user exports it. That is a real trade - clear site data and it is gone - so every export is a
  * complete, re-importable JSON document rather than a partial dump, and the UI says where the data is.
  */
-import type { Profile } from "./engine";
+import { SCORING_VERSION, type Profile } from "./engine";
 
 const DB_NAME = "growthpilot";
 const STORE = "businesses";
@@ -44,9 +44,43 @@ const readFallback = (): Profile[] => {
   }
 };
 
+/**
+ * A write that did not happen is not a write.
+ *
+ * The first version swallowed both the IndexedDB failure and the localStorage fallback failure, so a
+ * full or blocked store looked exactly like a successful save: the user kept typing into a UI that was
+ * quietly discarding the work. Failures are now typed and surface in the interface.
+ */
+export class StorageWriteError extends Error {
+  code: "quota" | "unavailable" | "unknown";
+  constructor(code: "quota" | "unavailable" | "unknown", message: string) {
+    super(message);
+    this.name = "StorageWriteError";
+    this.code = code;
+  }
+}
+
+const describeWriteFailure = (error: unknown): StorageWriteError => {
+  const name = (error as { name?: string } | null)?.name ?? "";
+  const code = (error as { code?: number } | null)?.code;
+  if (name === "QuotaExceededError" || code === 22 || code === 1014) {
+    return new StorageWriteError("quota", "This browser is out of storage space for this site.");
+  }
+  if (name === "SecurityError" || name === "InvalidStateError") {
+    return new StorageWriteError("unavailable", "This browser is blocking storage for this site.");
+  }
+  return new StorageWriteError("unknown", "The browser refused the write.");
+};
+
 const writeFallback = (profiles: Profile[]): void => {
-  if (typeof localStorage === "undefined") return;
-  localStorage.setItem(LS_KEY, JSON.stringify(profiles));
+  if (typeof localStorage === "undefined") {
+    throw new StorageWriteError("unavailable", "No local storage is available in this browser.");
+  }
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(profiles));
+  } catch (error) {
+    throw describeWriteFailure(error);
+  }
 };
 
 export async function listProfiles(): Promise<Profile[]> {
@@ -64,7 +98,11 @@ export async function listProfiles(): Promise<Profile[]> {
 }
 
 export async function saveProfile(profile: Profile): Promise<void> {
-  const stamped: Profile = { ...profile, updatedAt: new Date().toISOString() };
+  const stamped: Profile = {
+    ...profile,
+    scoringVersion: SCORING_VERSION,
+    updatedAt: new Date().toISOString(),
+  };
   try {
     const db = await openDb();
     await new Promise<void>((resolve, reject) => {

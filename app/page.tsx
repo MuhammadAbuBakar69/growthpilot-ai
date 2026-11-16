@@ -29,6 +29,7 @@ export default function Page() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("overview");
   const [note, setNote] = useState<{ tone: "ok" | "bad" | "warn"; text: string } | null>(null);
+  const [unsaved, setUnsaved] = useState(false);
   const [showNew, setShowNew] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -51,7 +52,16 @@ export default function Page() {
       if (!active) return;
       const next: Profile = { ...active, ...changes, updatedAt: new Date().toISOString() };
       setProfiles((prev) => prev.map((p) => (p.id === next.id ? next : p)));
-      void saveProfile(next);
+      void saveProfile(next).catch((error: unknown) => {
+        setUnsaved(true);
+        setNote({
+          tone: "bad",
+          text:
+            error instanceof Error
+              ? `${error.message} Export now to keep this work: the edits on screen are not saved.`
+              : "This browser refused the save. Export now to keep this work.",
+        });
+      });
     },
     [active],
   );
@@ -72,6 +82,7 @@ export default function Page() {
       await saveProfile(profile);
       await refresh();
       setActiveId(profile.id);
+      setUnsaved(false);
       setTab("questions");
       setNote({ tone: "warn", text: "Answer what you can in Questions. Anything skipped stays missing and is never scored as a zero." });
     },
@@ -171,6 +182,12 @@ export default function Page() {
           />
         ) : (
           <div className="stack">
+            {unsaved ? (
+              <div className="banner bad">
+                <strong>Not saved.</strong> This browser refused the last write. Export from Data before
+                closing the tab.
+              </div>
+            ) : null}
             {note ? (
               <div className={`banner ${note.tone === "ok" ? "ok" : note.tone === "bad" ? "bad" : ""}`}>
                 <span>{note.text}</span>

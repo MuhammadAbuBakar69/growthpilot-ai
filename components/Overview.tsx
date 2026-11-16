@@ -1,7 +1,7 @@
 "use client";
 
 import { crossCheck } from "@/lib/audit";
-import { DIMENSIONS, leverage, scoreProfile, type Profile } from "@/lib/engine";
+import { DIMENSIONS, SCORING_VERSION, leverage, scoreProfile, type Profile } from "@/lib/engine";
 import { Empty, Meter, Panel, Tag, toneForScore } from "./ui";
 
 export default function Overview({
@@ -11,9 +11,18 @@ export default function Overview({
   const top = leverage(profile).slice(0, 3);
   const checks = crossCheck(profile);
   const scored = score.dimensions.filter((d) => d.score !== null);
+  const stale = (profile.scoringVersion ?? 1) < SCORING_VERSION;
 
   return (
     <div className="stack">
+      {stale && score.overall !== null ? (
+        <Panel title="Scored under an older model" hint={`model v${profile.scoringVersion ?? 1} → v${SCORING_VERSION}`}>
+          <p className="note">
+            These answers were saved before the scoring model changed, so the number below came from
+            different weights. Re-saving the business upgrades it, and the score is recalculated.
+          </p>
+        </Panel>
+      ) : null}
       <Panel
         title="Growth score"
         hint={score.overall === null ? "no answers yet" : `${score.completeness}% of questions answered`}

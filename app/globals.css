@@ -46,6 +46,7 @@ h1, h2, h3 { letter-spacing: -0.015em; }
 .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
 .mono { font-family: var(--mono); }
 .muted { color: var(--muted); }
+.note { margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--ink-2); }
 .dimtext { color: var(--dim); }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .right { margin-left: auto; }

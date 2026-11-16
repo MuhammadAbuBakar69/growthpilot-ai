@@ -97,6 +97,13 @@ export const questionsFor = (dimension: DimensionId): Question[] =>
 
 export type Goal = "leads" | "sales" | "retention" | "awareness";
 
+/**
+ * Bumped whenever weights, questions or rules change what a score means. A saved profile carries the
+ * version it was scored under, so the UI can say "these answers predate the current model" rather than
+ * presenting an old number as if it were current.
+ */
+export const SCORING_VERSION = 2;
+
 export interface Profile {
   id: string;
   name: string;
@@ -113,6 +120,7 @@ export interface Profile {
   site: SiteFacts | null;
   createdAt: string;
   updatedAt: string;
+  scoringVersion?: number;
 }
 
 export interface SiteFacts {
