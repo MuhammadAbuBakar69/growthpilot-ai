@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Boundary from "@/components/Boundary";
 import DataVault from "@/components/DataVault";
 import Details from "@/components/Details";
 import Findings from "@/components/Findings";
@@ -222,9 +223,13 @@ export default function Page() {
             {tab === "overview" ? (
               <>
                 <div className="cols">
-                  <Overview profile={active} onAnswer={() => setTab("questions")} onOpenSite={() => setTab("site")} />
+                  <Boundary label="Overview">
+                    <Overview profile={active} onAnswer={() => setTab("questions")} onOpenSite={() => setTab("site")} />
+                  </Boundary>
                   <div className="stack">
-                    <Findings profile={active} onQuestions={() => setTab("questions")} />
+                    <Boundary label="Findings">
+                      <Findings profile={active} onQuestions={() => setTab("questions")} />
+                    </Boundary>
                   </div>
                 </div>
                 <Details profile={active} onPatch={patch} />
@@ -232,8 +237,8 @@ export default function Page() {
             ) : null}
 
             {tab === "findings" ? <Findings profile={active} onQuestions={() => setTab("questions")} /> : null}
-            {tab === "roadmap" ? <Roadmap profile={active} onQuestions={() => setTab("questions")} /> : null}
-            {tab === "questions" ? <Questions profile={active} onAnswer={answer} /> : null}
+            {tab === "roadmap" ? <Boundary label="Plan"><Roadmap profile={active} onQuestions={() => setTab("questions")} /></Boundary> : null}
+            {tab === "questions" ? <Boundary label="Questions"><Questions profile={active} onAnswer={answer} /></Boundary> : null}
             {tab === "site" ? (
               <div className="stack">
                 <Website profile={active} onFacts={(facts: SiteFacts | null) => patch({ site: facts })} />
