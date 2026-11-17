@@ -10,6 +10,7 @@ import Roadmap from "@/components/Roadmap";
 import SiteAudit from "@/components/SiteAudit";
 import Setup from "@/components/Setup";
 import Website from "@/components/Website";
+import { describeMerge, mergeImport } from "@/lib/import";
 import { scoreProfile, type Profile, type SiteFacts } from "@/lib/engine";
 import { deleteProfile, listProfiles, parseSnapshot, saveProfile, toSnapshot } from "@/lib/storage";
 
@@ -86,7 +87,7 @@ export default function Page() {
       setTab("questions");
       setNote({ tone: "warn", text: "Answer what you can in Questions. Anything skipped stays missing and is never scored as a zero." });
     },
-    [refresh],
+    [profiles, refresh],
   );
 
   const remove = useCallback(
@@ -122,11 +123,22 @@ export default function Page() {
         setNote({ tone: "bad", text: `Could not import: ${parsed.error}` });
         return;
       }
-      for (const business of parsed.businesses) await saveProfile(business);
+      // Merge rather than write straight through: an incoming id that already exists locally is never
+      // allowed to replace the copy someone has been editing.
+      const result = mergeImport(profiles, parsed.businesses);
+      for (const business of result.toWrite) {
+        try {
+          await saveProfile(business);
+        } catch (error) {
+          setUnsaved(true);
+          setNote({ tone: "bad", text: `Import stopped: ${(error as Error).message}` });
+          return;
+        }
+      }
       const list = await refresh();
-      setActiveId(parsed.businesses[0]?.id ?? list[0]?.id ?? null);
+      setActiveId(result.toWrite[0]?.id ?? list[0]?.id ?? null);
       setTab("overview");
-      setNote({ tone: "ok", text: `Imported ${parsed.businesses.length} ${parsed.businesses.length === 1 ? "business" : "businesses"}.` });
+      setNote({ tone: result.duplicated ? "warn" : "ok", text: describeMerge(result) });
     },
     [refresh],
   );
