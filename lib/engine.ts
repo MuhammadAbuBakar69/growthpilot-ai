@@ -147,6 +147,12 @@ export interface SiteFacts {
   structuredData: boolean;
   analytics: string | null;
   testimonialSamples: string[];
+  /**
+   * A quoted block with an attribution attached, and a published rating figure. Both are evidence; the
+   * word "reviews" in a sentence is not, which is why it is counted separately.
+   */
+  attributedQuotes?: string[];
+  ratingFigure?: string | null;
   proofSamples: string[];
   guaranteeSamples: string[];
   blockquotes: number;
@@ -558,6 +564,25 @@ const KEYWORDS = {
   analytics: /googletagmanager|gtag\(|google-analytics|plausible|umami|matomo|clarity\.ms|hotjar|fbq\(|posthog/i,
 };
 
+/**
+ * Evidence, not vocabulary.
+ *
+ * `KEYWORDS.testimonial` matches the word "reviews" anywhere, so "we have no reviews yet" used to be
+ * counted as proof that reviews exist. A testimonial claim is only supported by something a reader could
+ * check: a quoted block, a person named with a role, or a rating figure.
+ */
+const ATTRIBUTION_ROLE =
+  /\b(owner|founder|co-?founder|ceo|cto|manager|director|head of|buyer|client|customer|principal|teacher|doctor|chef|purchas\w*|operations)\b/i;
+
+const RATING_FIGURE = /\b\d(?:[.,]\d)?\s*(?:\/\s*5|out of\s*5|stars?)\b|\brated\s+\d(?:[.,]\d)?/i;
+
+const attributedQuotesFrom = (html: string): string[] =>
+  [...html.matchAll(/<blockquote\b[\s\S]*?<\/blockquote>/gi)]
+    .map((m) => stripTags(m[0]))
+    .filter((quote) => quote.length > 0)
+    .filter((quote) => /[—–-]\s*\S/.test(quote) || ATTRIBUTION_ROLE.test(quote))
+    .slice(0, 3);
+
 const snippets = (text: string, re: RegExp, limit = 3): string[] => {
   const out: string[] = [];
   const flags = re.flags.includes("g") ? re.flags : `${re.flags}g`;
@@ -628,6 +653,8 @@ export function extractSiteFacts(html: string, url: string | null = null): SiteF
     structuredData: /application\/ld\+json/i.test(html),
     analytics: analyticsRaw,
     testimonialSamples: snippets(text, KEYWORDS.testimonial, 3),
+    attributedQuotes: attributedQuotesFrom(html),
+    ratingFigure: (text.match(RATING_FIGURE) ?? [null])[0],
     proofSamples: snippets(text, KEYWORDS.proof, 2),
     guaranteeSamples: snippets(text, KEYWORDS.guarantee, 2),
     blockquotes,

@@ -32,8 +32,26 @@ export const GROUPS: { id: SignalGroup; label: string; question: string }[] = [
 
 const sig = (s: SiteSignal): SiteSignal => s;
 
+/**
+ * What actually proves social proof, used by both the audit and the cross-check so the two can never
+ * disagree about the same page.
+ *
+ * An attributed quote or a rating figure is evidence. The word "reviews" on its own is not: a page can
+ * say "we have no reviews yet" or "leave us a review" and match the old keyword test. That false positive
+ * is the exact class of error this product exists to catch elsewhere, so it should not commit it here.
+ */
+export const proofOfTestimonials = (f: SiteFacts): { level: "strong" | "weak" | "none"; evidence: string | null } => {
+  const quotes = f.attributedQuotes ?? [];
+  if (quotes.length > 0) return { level: "strong", evidence: quotes[0] };
+  if (f.ratingFigure) return { level: "strong", evidence: f.ratingFigure };
+  if (f.blockquotes > 0) return { level: "weak", evidence: null };
+  if (f.testimonialSamples.length > 0) return { level: "weak", evidence: f.testimonialSamples[0] };
+  return { level: "none", evidence: null };
+};
+
 export function auditSite(facts: SiteFacts): SiteSignal[] {
   const hasContact = facts.hasPhone || facts.hasEmail || facts.hasForm;
+  const testimonialProof = proofOfTestimonials(facts);
   return [
     sig({
       id: "h1", group: "positioning", label: "One headline stating the offer",
@@ -95,10 +113,18 @@ export function auditSite(facts: SiteFacts): SiteSignal[] {
 
     sig({
       id: "testimonials", group: "proof", label: "Testimonials or reviews",
-      status: facts.testimonialSamples.length > 0 ? "found" : "missing",
-      detail: facts.testimonialSamples.length > 0 ? `${facts.testimonialSamples.length} mention${facts.testimonialSamples.length > 1 ? "s" : ""} of reviews or testimonials` : "No testimonial, review or rating language found",
-      evidence: facts.testimonialSamples[0] ?? null,
-      consequence: "This is the single most common gap on small-business sites: the owner knows the work is good, the page never shows it, so the buyer pays for that ignorance with hesitation.",
+      status: testimonialProof.level === "strong" ? "found" : testimonialProof.level === "weak" ? "unclear" : "missing",
+      detail:
+        testimonialProof.level === "strong"
+          ? "A quote with an attribution, or a rating figure, is on the page"
+          : testimonialProof.level === "weak"
+            ? "Reviews are mentioned, but no attributed quote or rating figure backs it up"
+            : "No testimonial, review or rating language found",
+      evidence: testimonialProof.evidence,
+      consequence:
+        testimonialProof.level === "weak"
+          ? "A page that talks about reviews without showing one asks the buyer to take the claim on trust. A named quote or a rating figure does the work; the word alone does not."
+          : "This is the single most common gap on small-business sites: the owner knows the work is good, the page never shows it, so the buyer pays for that ignorance with hesitation.",
       fix: "Three customers, two sentences each, with a name and a company. Verbatim beats polished.",
     }),
     sig({
@@ -229,8 +255,13 @@ const CLAIMS: Claim[] = [
   {
     id: "testimonials", questionId: "tru_testimonial", severity: "high",
     claim: "You said testimonials exist",
-    pageSupports: (f) => f.testimonialSamples.length > 0 || f.blockquotes > 0,
-    pageSays: (f) => (f.testimonialSamples.length > 0 ? `${f.testimonialSamples.length} mention(s) of reviews or testimonials` : "no testimonial, review or rating language"),
+    pageSupports: (f) => proofOfTestimonials(f).level === "strong",
+    pageSays: (f) => {
+      const proof = proofOfTestimonials(f);
+      if (proof.level === "strong") return "an attributed quote or rating figure is on the page";
+      if (proof.level === "weak") return "reviews are mentioned, but no attributed quote or rating figure";
+      return "no testimonial, review or rating language";
+    },
     note: "One of the two is wrong. If the testimonials are real they are not on the page; if they are not on the page they are not doing any work.",
     fix: "Put three of them on the page, with names and companies, or correct the answer.",
   },

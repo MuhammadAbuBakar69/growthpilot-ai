@@ -52,7 +52,8 @@ describe("site audit", () => {
     const byId = new Map(signals.map((s) => [s.id, s]));
     expect(byId.get("h1")?.status).toBe("found");
     expect(byId.get("testimonials")?.status).toBe("found");
-    expect(byId.get("testimonials")?.evidence).toMatch(/review|testimonial|stars/i);
+    // Evidence is now the quote itself, not the keyword that used to stand in for it.
+    expect(byId.get("testimonials")?.evidence).toMatch(/Delivered 400 uniforms/);
     expect(byId.get("price")?.status).toBe("found");
     expect(byId.get("guarantee")?.status).toBe("found");
     expect(byId.get("viewport")?.status).toBe("found");
@@ -84,5 +85,48 @@ describe("site audit", () => {
     const checks = crossCheck(profile(STRONG, { tru_testimonial: 3, off_price: 3, mea_analytics: 3, con_contact: 3 }));
     expect(checks?.contradictions.length).toBe(0);
     expect(checks?.confirmed.map((c) => c.id).sort()).toEqual(["analytics", "contact", "price", "testimonials"]);
+  });
+});
+
+describe("proof that is only a keyword", () => {
+  const page = (body: string) =>
+    `<html lang="en"><head><title>Embroidery for hotel uniforms in Karachi</title></head><body>
+     <h2>What clients say</h2>${body}
+     <p>We embroider uniforms for hotels in Karachi and have done so since 2014, in small batches.</p>
+     </body></html>`;
+
+  it("does not count the word reviews as a testimonial", () => {
+    const facts = extractSiteFacts(page("<p>We have no reviews yet, but our clients are happy.</p>"));
+    const byId = new Map(auditSite(facts).map((s) => [s.id, s]));
+    // The old behaviour marked this "found": the exact false positive the product warns about.
+    expect(byId.get("testimonials")?.status).toBe("unclear");
+  });
+
+  it("does not count a request for reviews as proof of reviews", () => {
+    const facts = extractSiteFacts(page("<p>Leave us a review on Google.</p>"));
+    expect(new Map(auditSite(facts).map((s) => [s.id, s])).get("testimonials")?.status).toBe("unclear");
+  });
+
+  it("accepts a rating figure with no quote", () => {
+    const facts = extractSiteFacts(page("<p>Rated 4.9 out of 5 by 60 hotels.</p>"));
+    const signal = new Map(auditSite(facts).map((s) => [s.id, s])).get("testimonials");
+    expect(signal?.status).toBe("found");
+    expect(signal?.evidence).toMatch(/4.9/);
+  });
+
+  it("accepts a quoted block with a name attached", () => {
+    const facts = extractSiteFacts(page('<blockquote>"Nine days for 400 uniforms." — Ayesha, Pearl Continental</blockquote>'));
+    expect(new Map(auditSite(facts).map((s) => [s.id, s])).get("testimonials")?.status).toBe("found");
+  });
+
+  it("rejects a blockquote with no attribution at all", () => {
+    const facts = extractSiteFacts(page("<blockquote>Quality is our motto.</blockquote>"));
+    expect(new Map(auditSite(facts).map((s) => [s.id, s])).get("testimonials")?.status).toBe("unclear");
+  });
+
+  it("stops confirming a strong owner claim on a keyword alone", () => {
+    const checks = crossCheck(profile(page("<p>We have no reviews yet.</p>"), { tru_testimonial: 3 }));
+    expect(checks?.contradictions.map((c) => c.id)).toContain("testimonials");
+    expect(checks?.contradictions[0].page).toMatch(/no attributed quote/i);
   });
 });

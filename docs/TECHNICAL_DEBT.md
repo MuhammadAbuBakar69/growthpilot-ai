@@ -25,9 +25,10 @@ not after.
 **TD-4 Silent storage failure (GP-004).** The fallback path swallows quota errors. Interest: data the user
 believes is saved. This is the highest-severity bug in the repository and it is cheap to fix.
 
-**TD-5 Keyword-as-evidence in proof checks (GP-008).** The audit can mark testimonials "found" on the
-word "reviews" alone. Interest: exactly the failure mode the product markets against. Fix: attribution
-requirement.
+**TD-5 Keyword-as-evidence in proof checks (GP-008). RESOLVED.** Proof of testimonials now requires an
+attributed quote or a rating figure; a keyword-only mention is downgraded to "unclear" and no longer
+confirms a strong owner claim. See `proofOfTestimonials` in `lib/audit.ts`, six tests in
+`lib/audit.test.ts`.
 
 **TD-6 Import overwrite (GP-005).** No confirmation on id collision. Interest: one careless import
 destroys a stored analysis.
@@ -54,7 +55,7 @@ exports a file. Every later change is now a compatibility question.
 
 ## Order of work
 
-1. TD-4, TD-5, TD-6: correctness, each under an hour, each testable without new infrastructure.
+1. TD-4, TD-6: correctness, each under an hour, each testable without new infrastructure. (TD-5 done.)
 2. TD-3: version the score before any weight changes.
 3. TD-7, TD-8: maintainability, safe mechanical work.
 4. TD-1, TD-2: only after D1 is decided. Doing these first inverts the risk.
