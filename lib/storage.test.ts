@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SCORING_VERSION, emptyProfile } from "./engine";
-import { StorageWriteError, listProfiles, parseSnapshot, saveProfile } from "./storage";
+import { SNAPSHOT_VERSION, StorageWriteError, listProfiles, parseSnapshot, saveProfile, toSnapshot } from "./storage";
 
 /**
  * The fallback path is the one that matters here: in a browser without IndexedDB (private mode, some
@@ -84,5 +84,48 @@ describe("snapshot import", () => {
     const parsed = parseSnapshot(snapshot);
     expect(parsed.ok).toBe(true);
     if (parsed.ok) expect(parsed.businesses[0].name).toBe("Stitch Co");
+  });
+});
+
+describe("snapshot versioning", () => {
+  const v1 = JSON.stringify({
+    app: "growthpilot",
+    version: 1,
+    exportedAt: "2026-10-01T00:00:00.000Z",
+    businesses: [{ ...emptyProfile(), id: "old", name: "Stitch Co", answers: { pos_1: 3 } }],
+  });
+
+  it("imports a version 1 file written before scoring was versioned", () => {
+    const parsed = parseSnapshot(v1);
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      expect(parsed.businesses[0].answers).toEqual({ pos_1: 3 });
+      // A v1 file predates the model version, so it must arrive as the oldest known model rather than
+      // as "unknown", which the overview would silently treat as current.
+      expect(parsed.businesses[0].scoringVersion).toBe(1);
+    }
+  });
+
+  it("keeps the model version a newer file recorded", () => {
+    const v2 = JSON.stringify({
+      app: "growthpilot",
+      version: 2,
+      exportedAt: new Date().toISOString(),
+      businesses: [{ ...emptyProfile(), id: "new", name: "Stitch Co", scoringVersion: SCORING_VERSION }],
+    });
+    const parsed = parseSnapshot(v2);
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) expect(parsed.businesses[0].scoringVersion).toBe(SCORING_VERSION);
+  });
+
+  it("refuses a file from a newer app rather than importing it partially", () => {
+    const future = JSON.stringify({ app: "growthpilot", version: 99, businesses: [{ ...emptyProfile(), id: "f", name: "Future Co" }] });
+    const parsed = parseSnapshot(future);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) expect(parsed.error).toMatch(/newer version/i);
+  });
+
+  it("writes the current version when exporting", () => {
+    expect(toSnapshot([]).version).toBe(SNAPSHOT_VERSION);
   });
 });

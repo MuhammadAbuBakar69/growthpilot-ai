@@ -12,12 +12,32 @@ const STORE = "businesses";
 const VERSION = 1;
 const LS_KEY = "growthpilot.businesses.v1";
 
+/**
+ * The snapshot is a public contract: the moment someone exports a file, that file has to keep working
+ * in a later build. It used to carry a version that nothing read, so the number was decoration.
+ *
+ * Rules now: we read any version up to ours and upcast it through explicit steps; we refuse a file
+ * from a newer build with a reason instead of importing part of it and losing the rest; and we always
+ * write the current version.
+ */
+export const SNAPSHOT_VERSION = 2;
+
 export interface Snapshot {
   app: "growthpilot";
-  version: 1;
+  version: number;
   exportedAt: string;
   businesses: Profile[];
 }
+
+/**
+ * A version 1 file predates `scoringVersion`, so its answers were produced by the first weights. Marking
+ * them as version 1 lets the overview say the score is stale; leaving the field absent would be read as
+ * "unknown" and quietly treated as current.
+ */
+const upcastFromV1 = (business: Profile): Profile => ({
+  ...business,
+  scoringVersion: business.scoringVersion ?? 1,
+});
 
 const openDb = (): Promise<IDBDatabase> =>
   new Promise((resolve, reject) => {
@@ -132,7 +152,7 @@ export async function deleteProfile(id: string): Promise<void> {
 }
 
 export function toSnapshot(profiles: Profile[]): Snapshot {
-  return { app: "growthpilot", version: 1, exportedAt: new Date().toISOString(), businesses: profiles };
+  return { app: "growthpilot", version: SNAPSHOT_VERSION, exportedAt: new Date().toISOString(), businesses: profiles };
 }
 
 /**
@@ -146,6 +166,17 @@ export function parseSnapshot(raw: string): { ok: true; businesses: Profile[] } 
   } catch {
     return { ok: false, error: "That file is not valid JSON." };
   }
+  const declaredVersion =
+    typeof data === "object" && data !== null && !Array.isArray(data) && typeof (data as Snapshot).version === "number"
+      ? (data as Snapshot).version
+      : 1;
+  if (declaredVersion > SNAPSHOT_VERSION) {
+    return {
+      ok: false,
+      error: `That file was written by a newer version of this app (format ${declaredVersion}, this build reads up to ${SNAPSHOT_VERSION}). Update the app, then import it.`,
+    };
+  }
+
   const list = Array.isArray(data)
     ? data
     : typeof data === "object" && data !== null && Array.isArray((data as Snapshot).businesses)
@@ -171,10 +202,14 @@ export function parseSnapshot(raw: string): { ok: true; businesses: Profile[] } 
       channels: Array.isArray(candidate.channels) ? candidate.channels.filter((c) => typeof c === "string") : [],
       answers: typeof candidate.answers === "object" && candidate.answers !== null ? candidate.answers : {},
       site: candidate.site ?? null,
+      scoringVersion: typeof candidate.scoringVersion === "number" ? candidate.scoringVersion : undefined,
       createdAt: candidate.createdAt ?? new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
   }
   if (businesses.length === 0) return { ok: false, error: "No readable businesses in that file." };
-  return { ok: true, businesses };
+
+  // Upcast in order, oldest first. Each step only fills what that format did not record.
+  const migrated = declaredVersion < 2 ? businesses.map(upcastFromV1) : businesses;
+  return { ok: true, businesses: migrated };
 }
