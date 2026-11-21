@@ -13,7 +13,25 @@ import Setup from "@/components/Setup";
 import Website from "@/components/Website";
 import { describeMerge, mergeImport } from "@/lib/import";
 import { scoreProfile, type Profile, type SiteFacts } from "@/lib/engine";
-import { deleteProfile, listProfiles, parseSnapshot, saveProfile, toSnapshot } from "@/lib/storage";
+import {
+  backupPrompt,
+  backupSummary,
+  emptyBackupState,
+  dismissReminder,
+  markExported,
+  normaliseBackupState,
+  recordChange,
+  type BackupState,
+} from "@/lib/backup";
+import {
+  deleteProfile,
+  listProfiles,
+  parseSnapshot,
+  readBackupState,
+  saveProfile,
+  toSnapshot,
+  writeBackupState,
+} from "@/lib/storage";
 
 type Tab = "overview" | "findings" | "roadmap" | "questions" | "site" | "data";
 
@@ -32,12 +50,25 @@ export default function Page() {
   const [tab, setTab] = useState<Tab>("overview");
   const [note, setNote] = useState<{ tone: "ok" | "bad" | "warn"; text: string } | null>(null);
   const [unsaved, setUnsaved] = useState(false);
+  const [backup, setBackup] = useState<BackupState>(emptyBackupState);
   const [showNew, setShowNew] = useState(false);
 
   const refresh = useCallback(async () => {
     const list = await listProfiles();
     setProfiles(list);
     return list;
+  }, []);
+
+  useEffect(() => {
+    setBackup(normaliseBackupState(readBackupState()));
+  }, []);
+
+  const noteChange = useCallback(() => {
+    setBackup((prev) => {
+      const next = recordChange(prev);
+      writeBackupState(next);
+      return next;
+    });
   }, []);
 
   useEffect(() => {
@@ -54,6 +85,7 @@ export default function Page() {
       if (!active) return;
       const next: Profile = { ...active, ...changes, updatedAt: new Date().toISOString() };
       setProfiles((prev) => prev.map((p) => (p.id === next.id ? next : p)));
+      noteChange();
       void saveProfile(next).catch((error: unknown) => {
         setUnsaved(true);
         setNote({
@@ -82,6 +114,7 @@ export default function Page() {
   const create = useCallback(
     async (profile: Profile) => {
       await saveProfile(profile);
+      noteChange();
       await refresh();
       setActiveId(profile.id);
       setUnsaved(false);
@@ -106,14 +139,26 @@ export default function Page() {
 
   const exportAll = useCallback(() => {
     if (!profiles.length) return;
-    const blob = new Blob([JSON.stringify(toSnapshot(profiles), null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
     const stamp = new Date().toISOString().slice(0, 10);
-    a.href = url;
-    a.download = `growthpilot-${stamp}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    let url: string | null = null;
+    try {
+      const blob = new Blob([JSON.stringify(toSnapshot(profiles), null, 2)], { type: "application/json" });
+      url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `growthpilot-${stamp}.json`;
+      a.click();
+    } catch {
+      // A download that never started is not a backup. Say so rather than clearing the reminder, which
+      // would leave the owner believing a copy exists when none does.
+      setNote({ tone: "bad", text: "This browser blocked the download. Your data is unchanged and still unsaved elsewhere." });
+      return;
+    } finally {
+      if (url) URL.revokeObjectURL(url);
+    }
+    const fresh = markExported();
+    setBackup(fresh);
+    writeBackupState(fresh);
     setNote({ tone: "ok", text: "Exported. Keep that file: it is the only copy that survives this browser." });
   }, [profiles]);
 
@@ -136,15 +181,17 @@ export default function Page() {
           return;
         }
       }
+      if (result.toWrite.length > 0) noteChange();
       const list = await refresh();
       setActiveId(result.toWrite[0]?.id ?? list[0]?.id ?? null);
       setTab("overview");
       setNote({ tone: result.duplicated ? "warn" : "ok", text: describeMerge(result) });
     },
-    [refresh],
+    [noteChange, refresh],
   );
 
   const score = active ? scoreProfile(active) : null;
+  const reminder = backupPrompt(backup, profiles.length);
 
   return (
     <>
@@ -201,6 +248,14 @@ export default function Page() {
                 closing the tab.
               </div>
             ) : null}
+            {reminder.level === "suggest" && !unsaved ? (
+              <div className="banner warn">
+                <span>{reminder.text}</span>
+                <span className="right" />
+                <button className="btn btn-sm" onClick={exportAll}>Export now</button>
+                <button className="btn btn-sm btn-ghost" onClick={() => setBackup((prev) => { const next = dismissReminder(prev); writeBackupState(next); return next; })}>Dismiss</button>
+              </div>
+            ) : null}
             {note ? (
               <div className={`banner ${note.tone === "ok" ? "ok" : note.tone === "bad" ? "bad" : ""}`}>
                 <span>{note.text}</span>
@@ -254,6 +309,7 @@ export default function Page() {
                 onExport={exportAll}
                 onImport={importFile}
                 onNew={() => setShowNew(true)}
+                backupLabel={backupSummary(backup)}
               />
             ) : null}
 

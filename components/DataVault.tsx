@@ -5,7 +5,7 @@ import { scoreProfile, type Profile } from "@/lib/engine";
 import { Empty, Panel, Tag } from "./ui";
 
 export default function DataVault({
-  profiles, activeId, onSelect, onDelete, onExport, onImport, onNew,
+  profiles, activeId, onSelect, onDelete, onExport, onImport, onNew, backupLabel,
 }: {
   profiles: Profile[];
   activeId: string | null;
@@ -14,6 +14,8 @@ export default function DataVault({
   onExport: () => void;
   onImport: (file: File) => void;
   onNew: () => void;
+  /** When the last export happened, so the only copy is never a guess. */
+  backupLabel: string;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -21,7 +23,7 @@ export default function DataVault({
     <div className="stack">
       <Panel
         title="Your data"
-        hint={`${profiles.length} ${profiles.length === 1 ? "business" : "businesses"} on this device`}
+        hint={`${profiles.length} ${profiles.length === 1 ? "business" : "businesses"} on this device · ${backupLabel}`}
         actions={<button className="btn btn-sm" onClick={onExport}>Export JSON</button>}
       >
         <p className="hint" style={{ marginTop: 0 }}>

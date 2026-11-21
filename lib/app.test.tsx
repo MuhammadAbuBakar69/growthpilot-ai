@@ -4,7 +4,14 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import Page from "@/app/page";
 
-beforeEach(() => localStorage.clear());
+beforeEach(() => {
+  localStorage.clear();
+  // jsdom has no blob URLs; the export path needs one to simulate a download.
+  if (typeof URL.createObjectURL !== "function") {
+    URL.createObjectURL = () => "blob:test";
+    URL.revokeObjectURL = () => {};
+  }
+});
 
 describe("first run", () => {
   it("opens straight into setting up a business, with no sign-in anywhere", async () => {
@@ -86,5 +93,35 @@ describe("first run", () => {
     // No answers at all: the score panel must say nothing is scored, not show 0.
     expect(await screen.findByText(/Nothing scored yet/i)).toBeTruthy();
     expect(document.querySelector(".score-big")).toBeNull();
+  });
+});
+
+describe("backup reminder", () => {
+  it("tells the owner their work exists only in this browser, and stops after an export", async () => {
+    const user = userEvent.setup();
+    render(<Page />);
+
+    await user.type(await screen.findByPlaceholderText("Stitch Co"), "Stitch Co");
+    await user.click(screen.getByRole("button", { name: /start analysis/i }));
+
+    // The reminder appears without being asked for: nobody should have to discover Export.
+    expect(await screen.findByText(/only in this browser/i)).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Export now" }));
+    await waitFor(() => {
+      expect(screen.queryByText(/only in this browser/i)).toBeNull();
+    });
+  });
+
+  it("says when the last export happened instead of leaving it to memory", async () => {
+    const user = userEvent.setup();
+    render(<Page />);
+
+    await user.type(await screen.findByPlaceholderText("Stitch Co"), "Stitch Co");
+    await user.click(screen.getByRole("button", { name: /start analysis/i }));
+    await user.click(await screen.findByRole("button", { name: "Export now" }));
+    await user.click(screen.getByRole("button", { name: "Data" }));
+
+    expect(await screen.findByText(/Exported today/)).toBeTruthy();
   });
 });

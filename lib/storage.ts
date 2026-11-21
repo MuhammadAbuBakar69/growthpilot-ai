@@ -213,3 +213,32 @@ export function parseSnapshot(raw: string): { ok: true; businesses: Profile[] } 
   const migrated = declaredVersion < 2 ? businesses.map(upcastFromV1) : businesses;
   return { ok: true, businesses: migrated };
 }
+
+/**
+ * Backup bookkeeping persistence.
+ *
+ * Kept in localStorage rather than IndexedDB: it is a single small record, it must be readable before the
+ * database opens, and losing it is harmless (the worst case is one extra reminder). A failure here is
+ * swallowed on purpose, unlike a business write, because the reminder is advisory and must never block
+ * the work it is warning about.
+ */
+const BACKUP_KEY = "growthpilot.backup.v1";
+
+export function readBackupState(): unknown {
+  if (typeof localStorage === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(BACKUP_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeBackupState(state: unknown): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(BACKUP_KEY, JSON.stringify(state));
+  } catch {
+    // Advisory only. A browser that refuses this has already shown a harder failure elsewhere.
+  }
+}

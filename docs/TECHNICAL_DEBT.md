@@ -31,6 +31,14 @@ attributed quote or a rating figure; a keyword-only mention is downgraded to "un
 confirms a strong owner claim. See `proofOfTestimonials` in `lib/audit.ts`, six tests in
 `lib/audit.test.ts`.
 
+**TD-10 No backup reminder (GP-009). RESOLVED.** `lib/backup.ts` decides when the owner should be told
+that the export is the only copy, and the page shows it next to the export action with a one-click Export.
+It stays silent unless something is genuinely at stake: never exported, five or more changes since, or a
+backup older than a fortnight with changes behind it. Dismissal is recorded as a dismissal, never as an
+export, so the reminder cannot be used to fake a backup that does not exist; it returns after another five
+changes. A failed download is reported and does not clear the reminder. 18 tests in `lib/backup.test.ts`
+plus two jsdom flow tests in `lib/app.test.tsx`.
+
 **TD-6 Import overwrite (GP-005). RESOLVED.** Merge policy in `lib/import.ts`: a new id is added, an
 existing id is never overwritten, identical substance is skipped, and a genuine difference is kept
 alongside the local record under a new id named "(imported)". Six tests in `lib/import.test.ts`.
@@ -61,9 +69,10 @@ reason instead of being partially imported. Tests in `lib/storage.test.ts`.
 ## Order of work
 
 1. TD-7: split the engine by concern. The only remaining item that needs no decision and no new
-   infrastructure; pure moves plus re-exports, with the existing suite as the safety net.
+   infrastructure; pure moves plus re-exports, with the existing suite as the safety net. Note it grew to
+   667 lines while this entry waited, which is the interest being paid.
 2. TD-1, TD-2: only after D1 (hosting) is decided. Doing these first inverts the risk.
 3. TD-3's remaining gap, bumping the constant when weights change, needs no code: add it to the review
    checklist for any change to `DIMENSIONS` or the question weights.
 
-Resolved so far: TD-4, TD-5, TD-6, TD-8, TD-9, and the code half of TD-3.
+Resolved so far: TD-4, TD-5, TD-6, TD-8, TD-9, TD-10, and the code half of TD-3.
