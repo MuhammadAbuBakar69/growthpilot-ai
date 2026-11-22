@@ -272,21 +272,47 @@ export function scoreProfile(profile: Profile): ScoreResult {
 export interface Leverage {
   id: DimensionId;
   label: string;
-  gain: number;
-  score: number;
+  /** Points of overall score available here, or null when nothing is known about this dimension. */
+  gain: number | null;
+  /** The dimension score, or null when unanswered. Never 0: unanswered is not failure. */
+  score: number | null;
+  /** True when no question in this dimension has been answered, so there is no gap to measure. */
+  unmeasured: boolean;
 }
 
 /**
- * Where the next point of score is cheapest: weight x distance from perfect. It is a plan, not a
- * prediction - it says what the arithmetic rewards, and the roadmap turns it into actions.
+ * Where the next point of score is cheapest: weight x distance from perfect.
+ *
+ * The distance is only knowable for a dimension that has been answered. Treating a missing score as 0
+ * made the list confidently wrong: with no answers at all it ranked every dimension as a full-gap
+ * opportunity, with "website conversion +20" at the top purely because it carries the largest weight,
+ * and the 30-day plan then opened with "quick fixes in website conversion" for a business nobody had
+ * asked a single question about. Unmeasured dimensions are now reported as unmeasured and rank last;
+ * they are a reason to answer the questions, not a work item.
  */
 export function leverage(profile: Profile): Leverage[] {
   return DIMENSIONS.map((d) => {
     const s = scoreDimension(d, profile.answers);
-    return { id: d.id, label: d.label, score: s.score ?? 0, gain: Number((d.weight * (100 - (s.score ?? 0))).toFixed(1)) };
+    const unmeasured = s.score === null;
+    return {
+      id: d.id,
+      label: d.label,
+      score: s.score,
+      unmeasured,
+      gain: unmeasured ? null : Number((d.weight * (100 - (s.score as number))).toFixed(1)),
+    };
   })
-    .filter((l) => l.gain > 0)
-    .sort((a, b) => b.gain - a.gain);
+    .filter((l) => l.gain === null || l.gain > 0)
+    .sort((a, b) => {
+      // Measured gaps first, largest first; unmeasured dimensions after them, by weight as a tie-break
+      // so the list still reads in a stable order.
+      if (a.gain === null && b.gain === null) {
+        return (DIMENSIONS.find((d) => d.id === b.id)?.weight ?? 0) - (DIMENSIONS.find((d) => d.id === a.id)?.weight ?? 0);
+      }
+      if (a.gain === null) return 1;
+      if (b.gain === null) return -1;
+      return b.gain - a.gain;
+    });
 }
 
 // ---------------------------------------------------------------- findings
@@ -525,8 +551,17 @@ export function roadmap(profile: Profile): RoadmapStage[] {
   medium.forEach((f) => chosen.add(f.id));
   const large = all.filter((f) => f.effort === "L" && !chosen.has(f.id)).slice(0, 3);
 
-  const top = leverage(profile)[0];
-  const focusFor = (fallback: string) => (top ? fallback.replace("{dim}", top.label.toLowerCase()) : fallback.replace("{dim}", "the weakest dimension"));
+  // Only a measured dimension can be named as the focus. Naming the heaviest weight when nothing is
+  // answered turned an absence of data into an instruction, which is the one thing this engine promises
+  // not to do.
+  const ranked = leverage(profile);
+  const measured = ranked.find((l) => l.gain !== null) ?? null;
+  const focusFor = (fallback: string) => {
+    if (measured) return fallback.replace("{dim}", measured.label.toLowerCase());
+    return ranked.length > 0
+      ? "No answers yet, so nothing can be ranked: the questions come first, and every finding below is provisional until they are answered."
+      : fallback.replace("{dim}", "the weakest dimension");
+  };
 
   return [
     { window: "30 days", focus: focusFor("Quick fixes in {dim}: each is a small effort with a visible effect."), items: small },

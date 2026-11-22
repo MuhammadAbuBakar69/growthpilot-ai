@@ -45,6 +45,14 @@ alongside the local record under a new id named "(imported)". Six tests in `lib/
 
 ## Maintainability
 
+**TD-11 Unanswered dimensions scored as zero gap (GP-014). RESOLVED.** `leverage` and the roadmap
+treated an unmeasured dimension as a full-gap opportunity. With no answers at all it ranked every
+dimension and put "website conversion +20" first purely because that weight is largest, so the 30-day plan
+opened with "quick fixes in website conversion" for a business nobody had asked about. `Leverage.gain` is
+now `number | null` with an `unmeasured` flag: unmeasured dimensions rank after measured gaps and are
+named as unranked, the overview panel offers the questions instead of a list, and the roadmap focus says
+there are no answers yet rather than inventing a priority. Five tests in `lib/engine.test.ts`.
+
 **TD-7 Engine file concentration (GP-010).** 632 lines, five concerns. Interest: every new rule touches
 the same file, so parallel work collides and review gets slower. Low risk to split, pure moves plus
 re-exports, tests already cover behaviour.
@@ -75,4 +83,4 @@ reason instead of being partially imported. Tests in `lib/storage.test.ts`.
 3. TD-3's remaining gap, bumping the constant when weights change, needs no code: add it to the review
    checklist for any change to `DIMENSIONS` or the question weights.
 
-Resolved so far: TD-4, TD-5, TD-6, TD-8, TD-9, TD-10, and the code half of TD-3.
+Resolved so far: TD-3 (code half), TD-4, TD-5, TD-6, TD-8, TD-9, TD-10, TD-11.

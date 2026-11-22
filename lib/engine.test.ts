@@ -100,10 +100,47 @@ describe("leverage", () => {
   it("ranks dimensions by weight times distance from perfect", () => {
     const p = base({ answers: { ...allAnswers(0), con_cta: 3, con_fold: 3, con_steps: 3, con_contact: 3 } });
     const l = leverage(p);
-    expect(l.every((x) => x.gain >= 0)).toBe(true);
-    const gains = l.map((x) => x.gain);
+    expect(l.every((x) => x.gain === null || x.gain >= 0)).toBe(true);
+    const gains = l.map((x) => x.gain).filter((g): g is number => g !== null);
     expect(gains).toEqual([...gains].sort((a, b) => b - a));
     expect(l.some((x) => x.id === "conversion")).toBe(false);
+  });
+
+  it("does not call an unanswered dimension an opportunity", () => {
+    // Nothing answered: every dimension is unmeasured, so nothing has a measurable gap. The old code
+    // reported the heaviest weight as the biggest opportunity and put "website conversion +20" on top.
+    const l = leverage({ ...emptyProfile(), name: "Stitch Co" });
+    expect(l.every((x) => x.gain === null)).toBe(true);
+    expect(l.every((x) => x.unmeasured)).toBe(true);
+    expect(l.every((x) => x.score === null)).toBe(true);
+  });
+
+  it("ranks measured gaps above unmeasured dimensions", () => {
+    const p = base({ answers: { con_cta: 0, con_fold: 0, con_steps: 0, con_contact: 0 } });
+    const l = leverage(p);
+    expect(l[0].id).toBe("conversion");
+    expect(l[0].gain).toBe(20);
+    expect(l[0].score).toBe(0);
+    const firstUnmeasured = l.findIndex((x) => x.gain === null);
+    expect(firstUnmeasured).toBeGreaterThan(0);
+    expect(l.slice(firstUnmeasured).every((x) => x.gain === null)).toBe(true);
+  });
+
+  it("drops a measured dimension that is already perfect", () => {
+    expect(leverage(base({ answers: allAnswers(3) }))).toEqual([]);
+  });
+});
+
+describe("roadmap focus", () => {
+  it("never names a dimension nobody was asked about", () => {
+    const stages = roadmap({ ...emptyProfile(), name: "Stitch Co" });
+    expect(stages[0].focus).not.toMatch(/website conversion/i);
+    expect(stages[0].focus).toMatch(/no answers yet/i);
+  });
+
+  it("names the weakest measured dimension once there are answers", () => {
+    const stages = roadmap(base({ answers: { con_cta: 0, con_fold: 0, con_steps: 0, con_contact: 0 } }));
+    expect(stages[0].focus).toMatch(/website conversion/i);
   });
 });
 

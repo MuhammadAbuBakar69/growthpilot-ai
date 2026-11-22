@@ -8,7 +8,11 @@ export default function Overview({
   profile, onAnswer, onOpenSite,
 }: { profile: Profile; onAnswer: () => void; onOpenSite: () => void }) {
   const score = scoreProfile(profile);
-  const top = leverage(profile).slice(0, 3);
+  const ranked = leverage(profile);
+  // Only measured dimensions carry a real gap; the rest are reported as unranked rather than as a
+  // zero-scoring opportunity.
+  const measured = ranked.filter((l) => l.gain !== null).slice(0, 3);
+  const unmeasured = ranked.filter((l) => l.gain === null);
   const checks = crossCheck(profile);
   const scored = score.dimensions.filter((d) => d.score !== null);
   const stale = (profile.scoringVersion ?? 1) < SCORING_VERSION;
@@ -108,12 +112,21 @@ export default function Overview({
       </Panel>
 
       <Panel title="Where the next points are cheapest" hint="weight × distance from 100">
-        {top.length === 0 ? (
-          <Empty>Every answered dimension is already at 100.</Empty>
+        {measured.length === 0 ? (
+          <Empty>
+            Nothing can be ranked yet, because no dimension has been answered.
+            <button className="btn btn-sm btn-primary" onClick={onAnswer} style={{ marginLeft: 8 }}>
+              Answer the questions
+            </button>
+            <div className="hint" style={{ marginTop: 10 }}>
+              A gap is only measurable where there is an answer. Listing the heaviest weights as
+              &ldquo;opportunities&rdquo; before that would be arithmetic dressed up as advice.
+            </div>
+          </Empty>
         ) : (
           <>
             <div className="stack" style={{ gap: 10 }}>
-              {top.map((l, i) => (
+              {measured.map((l, i) => (
                 <div className="row" key={l.id}>
                   <span className="mono dimtext" style={{ fontSize: 11 }}>{String(i + 1).padStart(2, "0")}</span>
                   <span style={{ fontSize: 13.5 }}>{l.label}</span>
@@ -123,6 +136,13 @@ export default function Overview({
                 </div>
               ))}
             </div>
+            {unmeasured.length > 0 ? (
+              <p className="hint" style={{ marginTop: 12 }}>
+                {unmeasured.length === 1 ? "One dimension has" : `${unmeasured.length} dimensions have`} no
+                answers, so {unmeasured.length === 1 ? "it is" : "they are"} not ranked:{" "}
+                {unmeasured.map((l) => l.label.toLowerCase()).join(", ")}.
+              </p>
+            ) : null}
             <p className="hint" style={{ marginTop: 12 }}>
               This is arithmetic, not a forecast: each line is that dimension&apos;s weight multiplied by how
               far it is from 100. The findings turn the top of this list into concrete work.
