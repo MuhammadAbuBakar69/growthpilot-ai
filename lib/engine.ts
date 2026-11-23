@@ -291,15 +291,26 @@ export interface Leverage {
  * they are a reason to answer the questions, not a work item.
  */
 export function leverage(profile: Profile): Leverage[] {
+  // The overall score is renormalised over the dimensions that were actually answered, so one point of a
+  // dimension is worth weight/totalWeight of the whole, not weight. Using the raw weight understated every
+  // gap on a partly answered profile: with only conversion answered at 0/100 the panel promised "+20",
+  // while closing that gap moves the overall score by the full 100. The number shown has to be the number
+  // the arithmetic will actually produce.
+  const totalWeight = DIMENSIONS.reduce((sum, d) => {
+    const s = scoreDimension(d, profile.answers);
+    return s.score === null ? sum : sum + d.weight;
+  }, 0);
+
   return DIMENSIONS.map((d) => {
     const s = scoreDimension(d, profile.answers);
     const unmeasured = s.score === null;
+    const share = totalWeight === 0 ? 0 : d.weight / totalWeight;
     return {
       id: d.id,
       label: d.label,
       score: s.score,
       unmeasured,
-      gain: unmeasured ? null : Number((d.weight * (100 - (s.score as number))).toFixed(1)),
+      gain: unmeasured ? null : Number((share * (100 - (s.score as number))).toFixed(1)),
     };
   })
     .filter((l) => l.gain === null || l.gain > 0)
@@ -500,7 +511,11 @@ const RULES: Rule[] = [
 
 export function findings(profile: Profile): Finding[] {
   const dims = new Map(DIMENSIONS.map((d) => [d.id, d]));
-  const scored = new Map(scoreProfile(profile).dimensions.map((d) => [d.id, d]));
+  const model = scoreProfile(profile);
+  const scored = new Map(model.dimensions.map((d) => [d.id, d]));
+  // Same renormalisation as leverage: a dimension's share of the score depends on how much of the model
+  // has been answered, so "unlocks" has to be computed from that share rather than the raw weight.
+  const totalWeight = model.dimensions.reduce((sum, d) => (d.score === null ? sum : sum + d.weight), 0);
 
   return RULES.filter((rule) => {
     try {
@@ -516,7 +531,8 @@ export function findings(profile: Profile): Finding[] {
       // Unlocks = this dimension's weight spread across its open findings, scaled by impact and by how
       // much headroom the dimension has. It orders the list; it does not promise a score increase.
       const open = RULES.filter((r) => r.dimension === rule.dimension).length;
-      const unlocks = Number((((dim?.weight ?? 0.1) * headroom * rule.impact) / (5 * Math.max(1, open))).toFixed(1));
+      const share = totalWeight === 0 ? 0 : (dim?.weight ?? 0.1) / totalWeight;
+      const unlocks = Number(((share * headroom * rule.impact) / (5 * Math.max(1, open))).toFixed(1));
       return {
         id: rule.id,
         dimension: rule.dimension,

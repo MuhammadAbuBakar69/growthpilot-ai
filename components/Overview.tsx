@@ -111,7 +111,7 @@ export default function Overview({
         </div>
       </Panel>
 
-      <Panel title="Where the next points are cheapest" hint="weight × distance from 100">
+      <Panel title="Where the next points are cheapest" hint="share of your score × distance from 100">
         {measured.length === 0 ? (
           <Empty>
             Nothing can be ranked yet, because no dimension has been answered.

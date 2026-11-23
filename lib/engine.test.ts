@@ -96,6 +96,15 @@ describe("roadmap", () => {
   });
 });
 
+describe("finding value", () => {
+  it("values a finding by its share of what has been answered", () => {
+    const onlyConversion = base({ answers: { con_cta: 0, con_fold: 0, con_steps: 0, con_contact: 0 } });
+    const everything = base({ answers: allAnswers(0) });
+    const pick = (p: Profile) => findings(p).find((f) => f.dimension === "conversion")?.unlocks as number;
+    expect(pick(onlyConversion)).toBeGreaterThan(pick(everything));
+  });
+});
+
 describe("leverage", () => {
   it("ranks dimensions by weight times distance from perfect", () => {
     const p = base({ answers: { ...allAnswers(0), con_cta: 3, con_fold: 3, con_steps: 3, con_contact: 3 } });
@@ -119,11 +128,38 @@ describe("leverage", () => {
     const p = base({ answers: { con_cta: 0, con_fold: 0, con_steps: 0, con_contact: 0 } });
     const l = leverage(p);
     expect(l[0].id).toBe("conversion");
-    expect(l[0].gain).toBe(20);
+    // Conversion is the only dimension with answers, so it carries the whole renormalised score.
+    expect(l[0].gain).toBe(100);
     expect(l[0].score).toBe(0);
     const firstUnmeasured = l.findIndex((x) => x.gain === null);
     expect(firstUnmeasured).toBeGreaterThan(0);
     expect(l.slice(firstUnmeasured).every((x) => x.gain === null)).toBe(true);
+  });
+
+  it("promises the number of points the score will actually move", () => {
+    // The panel said "+20 potential" on a profile where conversion was the only dimension answered,
+    // because it multiplied the raw weight by the gap. Closing that gap moves the overall score by 100.
+    const before = base({ answers: { con_cta: 0, con_fold: 0, con_steps: 0, con_contact: 0 } });
+    const gain = leverage(before).find((l) => l.id === "conversion")?.gain as number;
+    const after = base({
+      answers: { con_cta: 3, con_fold: 3, con_steps: 3, con_contact: 3 },
+    });
+    const moved = (scoreProfile(after).overall as number) - (scoreProfile(before).overall as number);
+    expect(gain).toBe(moved);
+  });
+
+  it("keeps the raw weight when the whole model is answered", () => {
+    const l = leverage(base({ answers: allAnswers(0) }));
+    expect(l.find((x) => x.id === "conversion")?.gain).toBe(20);
+  });
+
+  it("values a gap by its share of a partly answered model", () => {
+    // Positioning (0.15) scores 4/9 = 44, conversion (0.2) scores 6/12 = 50. Shares of the 0.35 that has
+    // been answered: 0.15/0.35 x 56 = 24, 0.2/0.35 x 50 = 28.6.
+    const p = base({ answers: { pos_what: 1, pos_who: 2, pos_why: 1, con_cta: 2, con_fold: 1, con_steps: 2, con_contact: 1 } });
+    const l = leverage(p);
+    expect(l.find((x) => x.id === "conversion")?.gain).toBe(28.6);
+    expect(l.find((x) => x.id === "positioning")?.gain).toBe(24);
   });
 
   it("drops a measured dimension that is already perfect", () => {

@@ -43,6 +43,19 @@ plus two jsdom flow tests in `lib/app.test.tsx`.
 existing id is never overwritten, identical substance is skipped, and a genuine difference is kept
 alongside the local record under a new id named "(imported)". Six tests in `lib/import.test.ts`.
 
+**TD-12 Gain arithmetic ignored renormalisation (GP-015). RESOLVED.** `leverage` and `findings` multiplied
+a dimension's raw weight by its distance from 100 and presented the result as points of overall score. The
+overall score is renormalised over the dimensions that were answered, so on a partly answered profile the
+two did not agree: with conversion as the only measured dimension at 0/100, the panel promised "+20" while
+closing that gap moves the score by 100. Both now use the dimension's share of the answered model, and a
+test asserts that the promised gain equals the movement `scoreProfile` actually produces. Five tests in
+`lib/engine.test.ts`.
+
+**TD-13 Finding spread divides by every rule, not every open one.** `findings` computes `open` as the
+number of rules defined for a dimension rather than the number that fired, while the comment says open
+findings. It only reorders the list, so it is not urgent; it is recorded here because it was noticed while
+fixing TD-12 and is the same kind of quiet mismatch between a number and what it claims to mean.
+
 ## Maintainability
 
 **TD-11 Unanswered dimensions scored as zero gap (GP-014). RESOLVED.** `leverage` and the roadmap
@@ -79,8 +92,10 @@ reason instead of being partially imported. Tests in `lib/storage.test.ts`.
 1. TD-7: split the engine by concern. The only remaining item that needs no decision and no new
    infrastructure; pure moves plus re-exports, with the existing suite as the safety net. Note it grew to
    667 lines while this entry waited, which is the interest being paid.
-2. TD-1, TD-2: only after D1 (hosting) is decided. Doing these first inverts the risk.
-3. TD-3's remaining gap, bumping the constant when weights change, needs no code: add it to the review
+2. TD-13: count fired rules, not defined ones, so the spread matches its comment. Small and self
+   contained, a good follow-up to TD-12.
+3. TD-1, TD-2: only after D1 (hosting) is decided. Doing these first inverts the risk.
+4. TD-3's remaining gap, bumping the constant when weights change, needs no code: add it to the review
    checklist for any change to `DIMENSIONS` or the question weights.
 
-Resolved so far: TD-3 (code half), TD-4, TD-5, TD-6, TD-8, TD-9, TD-10, TD-11.
+Resolved so far: TD-3 (code half), TD-4, TD-5, TD-6, TD-8, TD-9, TD-10, TD-11, TD-12.
