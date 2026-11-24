@@ -105,6 +105,30 @@ describe("finding value", () => {
   });
 });
 
+describe("finding spread", () => {
+  it("divides by the findings that fired, not every rule the dimension defines", () => {
+    // The documented contract is that a dimension's value is spread across its open findings. Counting
+    // defined rules instead dilutes a dimension whose rules happen not to fire, which reorders the list
+    // by a number that does not describe the finding it is attached to.
+    const p = base({ answers: allAnswers(1) });
+    const model = scoreProfile(p);
+    const list = findings(p);
+    const fired = new Map<string, number>();
+    for (const f of list) fired.set(f.dimension, (fired.get(f.dimension) ?? 0) + 1);
+
+    const totalWeight = model.dimensions.reduce((sum, d) => (d.score === null ? sum : sum + d.weight), 0);
+    for (const f of list) {
+      const dim = model.dimensions.find((d) => d.id === f.dimension)!;
+      if (dim.score === null) continue;
+      const share = dim.weight / totalWeight;
+      const expected = Number(
+        ((share * (100 - dim.score) * f.impact) / (5 * (fired.get(f.dimension) ?? 1))).toFixed(1),
+      );
+      expect(f.unlocks, `${f.id} in ${f.dimension}`).toBeCloseTo(expected, 5);
+    }
+  });
+});
+
 describe("leverage", () => {
   it("ranks dimensions by weight times distance from perfect", () => {
     const p = base({ answers: { ...allAnswers(0), con_cta: 3, con_fold: 3, con_steps: 3, con_contact: 3 } });

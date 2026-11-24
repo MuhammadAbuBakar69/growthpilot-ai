@@ -51,10 +51,13 @@ closing that gap moves the score by 100. Both now use the dimension's share of t
 test asserts that the promised gain equals the movement `scoreProfile` actually produces. Five tests in
 `lib/engine.test.ts`.
 
-**TD-13 Finding spread divides by every rule, not every open one.** `findings` computes `open` as the
-number of rules defined for a dimension rather than the number that fired, while the comment says open
-findings. It only reorders the list, so it is not urgent; it is recorded here because it was noticed while
-fixing TD-12 and is the same kind of quiet mismatch between a number and what it claims to mean.
+**TD-13 Finding spread divided by every rule, not every open one. RESOLVED.** `findings` counted the
+rules *defined* for a dimension rather than the ones that fired, while the comment and the contract say
+open findings. A dimension whose other rules did not apply to this business was diluted anyway: on a
+partly answered profile, `pos-missing` reported 3.3 instead of 5, and because the list is ordered by
+`unlocks`, findings were ranked by a number that did not describe them. The count now comes from the fired
+set. The regression test derives the expected value from `scoreProfile` and the returned findings, so it
+states the contract rather than copying a constant.
 
 ## Maintainability
 

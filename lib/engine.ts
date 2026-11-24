@@ -517,20 +517,29 @@ export function findings(profile: Profile): Finding[] {
   // has been answered, so "unlocks" has to be computed from that share rather than the raw weight.
   const totalWeight = model.dimensions.reduce((sum, d) => (d.score === null ? sum : sum + d.weight), 0);
 
-  return RULES.filter((rule) => {
+  const fired = RULES.filter((rule) => {
     try {
       return rule.when(profile);
     } catch {
       return false;
     }
-  })
+  });
+  // Count the findings that actually fired in each dimension. Counting every defined rule instead
+  // diluted a dimension whose other rules happen not to apply to this business, so the list was ordered
+  // by a number that did not describe the finding it was attached to.
+  const openByDimension = new Map<string, number>();
+  for (const rule of fired) {
+    openByDimension.set(rule.dimension, (openByDimension.get(rule.dimension) ?? 0) + 1);
+  }
+
+  return fired
     .map((rule) => {
       const dim = dims.get(rule.dimension);
       const score = scored.get(rule.dimension);
       const headroom = score?.score === null || score?.score === undefined ? 100 : 100 - score.score;
       // Unlocks = this dimension's weight spread across its open findings, scaled by impact and by how
       // much headroom the dimension has. It orders the list; it does not promise a score increase.
-      const open = RULES.filter((r) => r.dimension === rule.dimension).length;
+      const open = openByDimension.get(rule.dimension) ?? 1;
       const share = totalWeight === 0 ? 0 : (dim?.weight ?? 0.1) / totalWeight;
       const unlocks = Number(((share * headroom * rule.impact) / (5 * Math.max(1, open))).toFixed(1));
       return {
