@@ -1,7 +1,21 @@
 # The engine
 
-`lib/engine.ts` is pure: the same profile always produces the same score, findings and plan. That is the
+The engine is pure: the same profile always produces the same score, findings and plan. That is the
 property that makes the output arguable.
+
+It is split by concern, and `lib/engine.ts` re-exports the lot so consumers keep one import:
+
+| Module | Holds |
+| --- | --- |
+| `lib/questions.ts` | dimensions, weights, the 21 questions |
+| `lib/profile.ts` | the profile shape, `emptyProfile`, `SCORING_VERSION` |
+| `lib/scoring.ts` | dimension and overall scores, bands, leverage |
+| `lib/findings.ts` | the 28 rules and their evidence classes |
+| `lib/roadmap.ts` | the 30-day plan |
+| `lib/site-facts.ts` | the HTML parser that produces `measured` facts |
+
+`lib/engine-facade.test.ts` fails if a module stops being re-exported, so the split cannot quietly break
+an import.
 
 ## Scoring
 

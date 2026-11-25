@@ -23,7 +23,7 @@ the page ever makes is loading its own files.
    answered, and shows how complete that is.
 2. **Every number shows its formula.** A dimension score is `earned / possible × 100` over that
    dimension's answers; the overall score is the weighted sum of dimension scores, weights in
-   `lib/engine.ts` (`positioning 15, offer 15, conversion 20, content 15, acquisition 15, trust 10,
+   `lib/questions.ts` (`positioning 15, offer 15, conversion 20, content 15, acquisition 15, trust 10,
    measurement 10`). You can disagree with the arithmetic instead of with an oracle.
 3. **Every claim carries its evidence class.** `measured` comes from HTML you supplied and parses the
    same way every time; `inferred` comes from your answers; `hypothesis` is never shown as a finding;
@@ -34,7 +34,7 @@ the page ever makes is loading its own files.
 ```bash
 npm install
 npm run dev      # http://localhost:3000
-npm test         # 19 tests: engine maths + a full click-through of the app
+npm test         # 113 tests: engine maths, storage, import, backup + a full click-through
 npm run build    # static export into out/
 ```
 
@@ -66,8 +66,13 @@ same site ready for a project page; that is what CI does.
 ```
 app/            page shell, one client component tree, no server routes
 components/     Overview, Findings, Roadmap, Questions, Website, DataVault, Setup
-lib/engine.ts   scoring, findings and roadmap - pure functions
+lib/questions.ts  dimensions, weights and the question bank
+lib/scoring.ts  scores, bands, leverage
+lib/findings.ts  the rules and their evidence
+lib/roadmap.ts  the 30-day plan
+lib/site-facts.ts  the HTML parser
+lib/engine.ts   the façade that re-exports the engine
 lib/storage.ts  IndexedDB with a localStorage fallback, plus export/import
-lib/*.test.*    19 tests
+lib/*.test.*    113 tests
 docs/           ENGINE.md (the model), ARCHITECTURE.md (the decisions)
 ```

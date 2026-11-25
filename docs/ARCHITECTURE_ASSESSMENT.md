@@ -55,7 +55,7 @@ The browser calls Gemini or OpenAI directly with a key the user pastes, stored i
 
 ```
 browser (static)                     api service (stateless)
-├─ lib/engine.ts   scoring           ├─ security/url.ts   SSRF guards
+├─ lib/scoring.ts  scoring           ├─ security/url.ts   SSRF guards
 ├─ lib/audit.ts    page checks       ├─ agents/registry   ten specs
 ├─ lib/agents/*    contracts  ──────▶├─ agents/providers  openai | gemini | fake
 ├─ IndexedDB       local state       ├─ agents/validate   strict schemas
@@ -69,7 +69,7 @@ provider key, and the API never sees the user's stored businesses beyond the req
 
 | Requirement | State |
 | --- | --- |
-| Structured findings with evidence, severity, effort, confidence | Implemented and tested (`lib/audit.ts`, `lib/engine.ts`) |
+| Structured findings with evidence, severity, effort, confidence | Implemented and tested (`lib/audit.ts`, `lib/findings.ts`) |
 | Separation of scoring, rules and parsing | Present, needs the file split (TD-7) |
 | Deterministic, reproducible output | Yes: pure functions, 25 tests |
 | Provider abstraction, agent registry, output validation | Landed this commit as contracts, tested offline |

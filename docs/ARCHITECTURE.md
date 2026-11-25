@@ -19,7 +19,7 @@ cannot read another origin. Rather than ship a half-working fetch, the app asks 
 parses it in the tab. That is a smaller claim honestly made, and it keeps the promise that nothing
 leaves the browser.
 
-**Rules over a language model.** Every finding is a predicate you can read in `lib/engine.ts`, with its
+**Rules over a language model.** Every finding is a predicate you can read in `lib/findings.ts`, with its
 evidence class attached. A model would produce more fluent prose and less reproducible output, and this
 product's value is that its claims can be checked.
 

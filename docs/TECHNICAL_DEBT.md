@@ -69,9 +69,15 @@ now `number | null` with an `unmeasured` flag: unmeasured dimensions rank after 
 named as unranked, the overview panel offers the questions instead of a list, and the roadmap focus says
 there are no answers yet rather than inventing a priority. Five tests in `lib/engine.test.ts`.
 
-**TD-7 Engine file concentration (GP-010).** 632 lines, five concerns. Interest: every new rule touches
-the same file, so parallel work collides and review gets slower. Low risk to split, pure moves plus
-re-exports, tests already cover behaviour.
+**TD-7 Engine file concentration (GP-010). RESOLVED.** The 727-line file is now six modules by concern:
+`lib/questions.ts` (dimensions, weights, question bank), `lib/profile.ts` (profile shape, `emptyProfile`,
+`SCORING_VERSION`), `lib/scoring.ts` (dimension and overall scores, bands, leverage), `lib/findings.ts`
+(the rules), `lib/roadmap.ts` (the plan) and `lib/site-facts.ts` (the parser). `lib/engine.ts` is a
+façade that re-exports all of them, so no consumer changed. `lib/engine-facade.test.ts` states the
+contract the split has to keep: every public name is re-exported and is the same binding, the question
+bank does not reach into scoring or findings, and the parser does not judge what it parses. Pure moves,
+so behaviour is unchanged and the existing 109 tests still pass. It had grown from 632 to 727 lines while
+this entry waited.
 
 **TD-8 No error boundary (GP-007). RESOLVED.** `components/Boundary.tsx` wraps the overview, findings,
 plan and questions panels, so a failing section states what happened in place and the rest of the
@@ -92,13 +98,11 @@ reason instead of being partially imported. Tests in `lib/storage.test.ts`.
 
 ## Order of work
 
-1. TD-7: split the engine by concern. The only remaining item that needs no decision and no new
-   infrastructure; pure moves plus re-exports, with the existing suite as the safety net. Note it grew to
-   667 lines while this entry waited, which is the interest being paid.
-2. TD-13: count fired rules, not defined ones, so the spread matches its comment. Small and self
-   contained, a good follow-up to TD-12.
-3. TD-1, TD-2: only after D1 (hosting) is decided. Doing these first inverts the risk.
-4. TD-3's remaining gap, bumping the constant when weights change, needs no code: add it to the review
+1. TD-1, TD-2: only after D1 (hosting) is decided. Doing these first inverts the risk.
+2. GP-012, an opt-in local error log, is the last item that needs no decision and no infrastructure: it
+   records failures in the browser where they already happen, and gains an endpoint for free once TD-1
+   exists. Design question first: what is stored, and how is it cleared.
+3. TD-3's remaining gap, bumping the constant when weights change, needs no code: add it to the review
    checklist for any change to `DIMENSIONS` or the question weights.
 
-Resolved so far: TD-3 (code half), TD-4, TD-5, TD-6, TD-8, TD-9, TD-10, TD-11, TD-12.
+Resolved so far: TD-3 (code half), TD-4, TD-5, TD-6, TD-7, TD-8, TD-9, TD-10, TD-11, TD-12, TD-13.
