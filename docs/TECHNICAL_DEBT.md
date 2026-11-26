@@ -60,6 +60,15 @@ set. The regression test derives the expected value from `scoreProfile` and the 
 states the contract rather than copying a constant.
 
 ## Maintainability
+**TD-14 Unreadable saved data read as an empty store (GP-016). RESOLVED.** `readFallback` swallowed a
+parse error and returned `[]`, so a corrupt store looked exactly like a fresh install: the app showed the
+blank setup screen and the next save wrote only that one record over the file, destroying every other
+business without a word. The raw bytes are now copied to a `growthpilot.businesses.v1.unreadable.<time>`
+recovery key before anything replaces them, valid records in a partly readable file are kept, and if the
+copy cannot be written the save is refused with a typed error rather than proceeding. The page states how
+many files were preserved. Five tests in `lib/storage.test.ts`, one of which asserts the original bytes
+survive a save.
+
 
 **TD-11 Unanswered dimensions scored as zero gap (GP-014). RESOLVED.** `leverage` and the roadmap
 treated an unmeasured dimension as a full-gap opportunity. With no answers at all it ranked every
@@ -105,4 +114,4 @@ reason instead of being partially imported. Tests in `lib/storage.test.ts`.
 3. TD-3's remaining gap, bumping the constant when weights change, needs no code: add it to the review
    checklist for any change to `DIMENSIONS` or the question weights.
 
-Resolved so far: TD-3 (code half), TD-4, TD-5, TD-6, TD-7, TD-8, TD-9, TD-10, TD-11, TD-12, TD-13.
+Resolved so far: TD-3 (code half), TD-4, TD-5, TD-6, TD-7, TD-8, TD-9, TD-10, TD-11, TD-12, TD-13, TD-14.

@@ -54,15 +54,86 @@ const openDb = (): Promise<IDBDatabase> =>
     request.onerror = () => reject(request.error ?? new Error("indexeddb-failed"));
   });
 
-const readFallback = (): Profile[] => {
-  if (typeof localStorage === "undefined") return [];
+const UNREADABLE_PREFIX = `${LS_KEY}.unreadable.`;
+
+const looksLikeProfile = (value: unknown): value is Profile =>
+  typeof value === "object" && value !== null && typeof (value as { id?: unknown }).id === "string";
+
+/**
+ * Saved data that cannot be parsed is the only copy of the user's work, so it is never discarded.
+ *
+ * Reading it as "no businesses" made a corrupt store look like a fresh install: the app offered a blank
+ * setup screen and the next save wrote only that one record over the file, destroying everything else
+ * without a word. The raw bytes are now copied to a recovery key before anything replaces them, and if
+ * the copy cannot be written the write is refused outright. Losing the file is bad; overwriting it while
+ * claiming it was empty is worse.
+ */
+const preserveUnreadable = (raw: string): string => {
+  const key = `${UNREADABLE_PREFIX}${new Date().toISOString().replace(/[:.]/g, "-")}`;
   try {
-    const raw = localStorage.getItem(LS_KEY);
-    return raw ? (JSON.parse(raw) as Profile[]) : [];
+    localStorage.setItem(key, raw);
+    localStorage.removeItem(LS_KEY);
+  } catch (error) {
+    const failure = describeWriteFailure(error);
+    throw new StorageWriteError(
+      failure.code,
+      "Saved data on this device could not be read, and there is no room to keep a copy, so nothing was written.",
+    );
+  }
+  return key;
+};
+
+interface FallbackState {
+  profiles: Profile[];
+  unreadable: boolean;
+}
+
+const readFallbackState = (): FallbackState => {
+  if (typeof localStorage === "undefined") return { profiles: [], unreadable: false };
+  let raw: string | null = null;
+  try {
+    raw = localStorage.getItem(LS_KEY);
+  } catch {
+    return { profiles: [], unreadable: false };
+  }
+  if (!raw) return { profiles: [], unreadable: false };
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    preserveUnreadable(raw);
+    return { profiles: [], unreadable: true };
+  }
+  if (!Array.isArray(parsed)) {
+    preserveUnreadable(raw);
+    return { profiles: [], unreadable: true };
+  }
+
+  const readable = parsed.filter(looksLikeProfile);
+  if (readable.length !== parsed.length) {
+    preserveUnreadable(raw);
+    return { profiles: readable, unreadable: true };
+  }
+  return { profiles: readable, unreadable: false };
+};
+
+const readFallback = (): Profile[] => readFallbackState().profiles;
+
+/** Recovery keys written by `preserveUnreadable`, so the interface can say what was kept. */
+export function unreadableBackups(): string[] {
+  if (typeof localStorage === "undefined") return [];
+  const keys: string[] = [];
+  try {
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(UNREADABLE_PREFIX)) keys.push(key);
+    }
   } catch {
     return [];
   }
-};
+  return keys.sort();
+}
 
 /**
  * A write that did not happen is not a write.

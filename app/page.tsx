@@ -30,6 +30,7 @@ import {
   readBackupState,
   saveProfile,
   toSnapshot,
+  unreadableBackups,
   writeBackupState,
 } from "@/lib/storage";
 
@@ -52,6 +53,7 @@ export default function Page() {
   const [unsaved, setUnsaved] = useState(false);
   const [backup, setBackup] = useState<BackupState>(emptyBackupState);
   const [showNew, setShowNew] = useState(false);
+  const [recovered, setRecovered] = useState(0);
 
   const refresh = useCallback(async () => {
     const list = await listProfiles();
@@ -61,6 +63,7 @@ export default function Page() {
 
   useEffect(() => {
     setBackup(normaliseBackupState(readBackupState()));
+    setRecovered(unreadableBackups().length);
   }, []);
 
   const noteChange = useCallback(() => {
@@ -242,6 +245,15 @@ export default function Page() {
           />
         ) : (
           <div className="stack">
+            {recovered > 0 ? (
+              <div className="banner warn">
+                <span>
+                  {recovered === 1 ? "A saved file" : `${recovered} saved files`} on this device could not be
+                  read. A copy was kept rather than overwritten, so nothing was lost. If you have an export,
+                  importing it restores what you had.
+                </span>
+              </div>
+            ) : null}
             {unsaved ? (
               <div className="banner bad">
                 <strong>Not saved.</strong> This browser refused the last write. Export from Data before

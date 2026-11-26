@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SCORING_VERSION, emptyProfile } from "./engine";
-import { SNAPSHOT_VERSION, StorageWriteError, listProfiles, parseSnapshot, saveProfile, toSnapshot } from "./storage";
+import {
+  SNAPSHOT_VERSION, StorageWriteError, listProfiles, parseSnapshot, saveProfile, toSnapshot, unreadableBackups,
+} from "./storage";
 
 /**
  * The fallback path is the one that matters here: in a browser without IndexedDB (private mode, some
@@ -12,6 +14,10 @@ const fakeLocalStorage = {
   getItem: (k: string) => store.get(k) ?? null,
   setItem: (k: string, v: string) => void store.set(k, v),
   removeItem: (k: string) => void store.delete(k),
+  get length() {
+    return store.size;
+  },
+  key: (i: number) => [...store.keys()][i] ?? null,
 };
 
 beforeEach(() => {
@@ -127,5 +133,61 @@ describe("snapshot versioning", () => {
 
   it("writes the current version when exporting", () => {
     expect(toSnapshot([]).version).toBe(SNAPSHOT_VERSION);
+  });
+});
+
+/**
+ * Saved data that cannot be parsed is the worst case in this file: it is the only copy, and the app has
+ * to keep working. It must not read as "no businesses" and then let the next save overwrite the file.
+ */
+const LS = "growthpilot.businesses.v1";
+
+describe("unreadable saved data", () => {
+  it("keeps a copy it cannot parse instead of overwriting it", async () => {
+    store.set(LS, "{not json at all");
+    await saveProfile({ ...emptyProfile(), id: "n1", name: "Stitch Co" });
+
+    const backups = unreadableBackups();
+    expect(backups).toHaveLength(1);
+    expect(store.get(backups[0])).toBe("{not json at all");
+    expect((await listProfiles()).map((p) => p.id)).toEqual(["n1"]);
+  });
+
+  it("treats valid JSON of the wrong shape the same way", async () => {
+    store.set(LS, JSON.stringify({ businesses: [] }));
+    await saveProfile({ ...emptyProfile(), id: "n2", name: "Stitch Co" });
+    expect(unreadableBackups()).toHaveLength(1);
+    expect((await listProfiles()).map((p) => p.id)).toEqual(["n2"]);
+  });
+
+  it("keeps the records it can read and preserves the raw file", async () => {
+    store.set(LS, JSON.stringify([{ ...emptyProfile(), id: "good", name: "Readable" }, { nope: true }]));
+    const rows = await listProfiles();
+    expect(rows.map((p) => p.id)).toEqual(["good"]);
+    expect(unreadableBackups()).toHaveLength(1);
+  });
+
+  it("refuses to overwrite when it cannot preserve a copy", async () => {
+    store.set(LS, "{broken");
+    vi.stubGlobal("localStorage", {
+      ...fakeLocalStorage,
+      setItem: (k: string, v: string) => {
+        if (k.startsWith(`${LS}.unreadable.`)) {
+          const error = new Error("full");
+          error.name = "QuotaExceededError";
+          throw error;
+        }
+        store.set(k, v);
+      },
+    });
+    await expect(saveProfile({ ...emptyProfile(), id: "n3", name: "Stitch Co" })).rejects.toMatchObject({
+      code: "quota",
+    });
+    expect(store.get(LS)).toBe("{broken");
+  });
+
+  it("reports nothing to recover on a healthy store", async () => {
+    await saveProfile({ ...emptyProfile(), id: "n4", name: "Stitch Co" });
+    expect(unreadableBackups()).toEqual([]);
   });
 });
