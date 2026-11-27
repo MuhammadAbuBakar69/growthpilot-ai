@@ -188,7 +188,7 @@ export default function Page() {
       const list = await refresh();
       setActiveId(result.toWrite[0]?.id ?? list[0]?.id ?? null);
       setTab("overview");
-      setNote({ tone: result.duplicated ? "warn" : "ok", text: describeMerge(result) });
+      setNote({ tone: result.duplicated || result.repeated ? "warn" : "ok", text: describeMerge(result) });
     },
     [noteChange, refresh],
   );

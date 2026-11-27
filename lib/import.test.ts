@@ -35,6 +35,34 @@ describe("import policy", () => {
     expect(result.toWrite.some((p) => p.id === local.id)).toBe(false);
   });
 
+
+  it("keeps both records when the file itself repeats an id", () => {
+    // Two exports concatenated by hand, or a file edited in a text editor, can contain the same id twice.
+    // Writing both under one key means the second silently replaces the first, which is the exact loss
+    // this policy exists to prevent.
+    const fromLaptop = profile({ id: "dup", description: "written on the laptop" });
+    const fromDesktop = profile({ id: "dup", description: "written on the desktop" });
+
+    const result = mergeImport([], [fromLaptop, fromDesktop]);
+
+    expect(result.added).toBe(1);
+    expect(result.repeated).toBe(1);
+    expect(result.toWrite).toHaveLength(2);
+    const keys = result.toWrite.map((p) => p.id);
+    expect(new Set(keys).size).toBe(2);
+    expect(result.toWrite[1].name).toBe("Stitch Co (imported)");
+    expect(result.toWrite[1].description).toBe(fromDesktop.description);
+    expect(result.toWrite[0].description).toBe(fromLaptop.description);
+  });
+
+  it("skips an in-file repeat that carries identical substance", () => {
+    const first = profile({ id: "dup" });
+    const result = mergeImport([], [first, { ...first, updatedAt: "2030-01-01T00:00:00.000Z" }]);
+    expect(result.toWrite).toHaveLength(1);
+    expect(result.identical).toBe(1);
+    expect(result.repeated).toBe(0);
+  });
+
   it("skips a record that is identical in substance", () => {
     const local = profile();
     const result = mergeImport([local], [{ ...local, updatedAt: "2030-01-01T00:00:00.000Z" }]);
@@ -58,6 +86,11 @@ describe("import policy", () => {
   it("describes the outcome in words a user can act on", () => {
     const result = mergeImport([profile()], [profile({ description: "different" })]);
     expect(describeMerge(result)).toContain("Nothing was overwritten");
-    expect(describeMerge({ toWrite: [], added: 0, duplicated: 0, identical: 0 })).toBe("Nothing to import.");
+    expect(describeMerge({ toWrite: [], added: 0, duplicated: 0, repeated: 0, identical: 0 })).toBe(
+      "Nothing to import.",
+    );
+    // A repeat inside the file is reported for what it was, not folded into the local-collision count.
+    const repeated = mergeImport([], [profile({ id: "r1" }), profile({ id: "r1", description: "other" })]);
+    expect(describeMerge(repeated)).toContain("the file repeated its id");
   });
 });

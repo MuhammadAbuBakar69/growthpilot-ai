@@ -51,6 +51,15 @@ closing that gap moves the score by 100. Both now use the dimension's share of t
 test asserts that the promised gain equals the movement `scoreProfile` actually produces. Five tests in
 `lib/engine.test.ts`.
 
+**TD-15 A repeated id inside one file overwrote itself (GP-017). RESOLVED.** The import policy compared
+each incoming record against the store, never against the records already accepted from the same file, so
+a snapshot carrying one id twice (two exports pasted together, or a file edited by hand) wrote both under
+that key: the second replaced the first, and the summary still reported two additions. A repeat inside the
+file now follows the same rule as a local collision, compared against the first record seen for that id:
+identical substance is skipped, a genuine difference is kept under a fresh id marked "(imported)", and the
+summary says "the file repeated its id" rather than folding it into the local-collision count. Two tests
+in `lib/import.test.ts`, one of which asserts the two writes never share a key.
+
 **TD-13 Finding spread divided by every rule, not every open one. RESOLVED.** `findings` counted the
 rules *defined* for a dimension rather than the ones that fired, while the comment and the contract say
 open findings. A dimension whose other rules did not apply to this business was diluted anyway: on a
@@ -114,4 +123,5 @@ reason instead of being partially imported. Tests in `lib/storage.test.ts`.
 3. TD-3's remaining gap, bumping the constant when weights change, needs no code: add it to the review
    checklist for any change to `DIMENSIONS` or the question weights.
 
-Resolved so far: TD-3 (code half), TD-4, TD-5, TD-6, TD-7, TD-8, TD-9, TD-10, TD-11, TD-12, TD-13, TD-14.
+Resolved so far: TD-3 (code half), TD-4, TD-5, TD-6, TD-7, TD-8, TD-9, TD-10, TD-11, TD-12, TD-13,
+TD-14, TD-15.

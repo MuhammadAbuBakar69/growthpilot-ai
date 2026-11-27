@@ -10,12 +10,19 @@ import type { Profile } from "./engine";
  * The rule now: an id that is not present is added. An id that is present is never overwritten. If the
  * incoming record is byte-identical in substance it is skipped; if it differs, it is kept alongside the
  * local one under a new id and marked as an imported copy, so both survive and the user can choose.
+ *
+ * The same rule applies inside the file. Two exports pasted together, or a snapshot edited in a text
+ * editor, can carry one id twice, and writing both under that key lets the second replace the first
+ * while the summary reports two additions. A repeat is therefore treated exactly like a local collision.
  */
 
 export interface MergeResult {
   toWrite: Profile[];
   added: number;
+  /** Kept as a copy because the store already had that id. */
   duplicated: number;
+  /** Kept as a copy because the file repeated that id. */
+  repeated: number;
   identical: number;
 }
 
@@ -37,16 +44,44 @@ const newId = (): string => {
   return `imported-${counter}`;
 };
 
+/** A record kept alongside another under a fresh id, so neither copy is lost. */
+const copyOf = (record: Profile, now: Date, taken: Set<string>): Profile => {
+  let id = newId();
+  while (taken.has(id)) id = newId();
+  taken.add(id);
+  return {
+    ...record,
+    id,
+    name: `${record.name} (imported)`,
+    createdAt: record.createdAt,
+    updatedAt: now.toISOString(),
+  };
+};
+
 export function mergeImport(current: Profile[], incoming: Profile[], now = new Date()): MergeResult {
   const byId = new Map(current.map((p) => [p.id, p]));
   const taken = new Set(current.map((p) => p.id));
+  // The first record seen for each id in this file, so a repeat can be compared and reported honestly.
+  const seenIncoming = new Map<string, Profile>();
   const toWrite: Profile[] = [];
   let added = 0;
   let duplicated = 0;
+  let repeated = 0;
   let identical = 0;
 
   for (const record of incoming) {
     const local = byId.get(record.id);
+    const earlierInFile = seenIncoming.get(record.id);
+    if (earlierInFile) {
+      if (sameSubstance(earlierInFile, record)) {
+        identical += 1;
+        continue;
+      }
+      toWrite.push(copyOf(record, now, taken));
+      repeated += 1;
+      continue;
+    }
+    seenIncoming.set(record.id, record);
     if (!local) {
       toWrite.push(record);
       taken.add(record.id);
@@ -57,26 +92,18 @@ export function mergeImport(current: Profile[], incoming: Profile[], now = new D
       identical += 1;
       continue;
     }
-    let id = newId();
-    while (taken.has(id)) id = newId();
-    taken.add(id);
-    toWrite.push({
-      ...record,
-      id,
-      name: `${record.name} (imported)`,
-      createdAt: record.createdAt,
-      updatedAt: now.toISOString(),
-    });
+    toWrite.push(copyOf(record, now, taken));
     duplicated += 1;
   }
 
-  return { toWrite, added, duplicated, identical };
+  return { toWrite, added, duplicated, repeated, identical };
 }
 
 export function describeMerge(result: MergeResult): string {
   const parts: string[] = [];
   if (result.added) parts.push(`${result.added} added`);
   if (result.duplicated) parts.push(`${result.duplicated} kept as a copy because the id already existed`);
+  if (result.repeated) parts.push(`${result.repeated} kept as a copy because the file repeated its id`);
   if (result.identical) parts.push(`${result.identical} already identical`);
   if (!parts.length) return "Nothing to import.";
   return `Imported: ${parts.join(", ")}. Nothing was overwritten.`;
