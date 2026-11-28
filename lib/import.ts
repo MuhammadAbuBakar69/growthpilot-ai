@@ -38,13 +38,20 @@ const sameSubstance = (a: Profile, b: Profile): boolean =>
   JSON.stringify(a.answers ?? {}) === JSON.stringify(b.answers ?? {}) &&
   JSON.stringify(a.site ?? null) === JSON.stringify(b.site ?? null);
 
+const IMPORTED_SUFFIX = " (imported)";
+
 let counter = 0;
 const newId = (): string => {
   counter += 1;
   return `imported-${counter}`;
 };
 
-/** A record kept alongside another under a fresh id, so neither copy is lost. */
+/**
+ * A record kept alongside another under a fresh id, so neither copy is lost.
+ *
+ * The name is marked once. Importing an already imported copy used to stack the suffix
+ * ("Studio (imported) (imported) (imported)"), which made a real business look like a mistake.
+ */
 const copyOf = (record: Profile, now: Date, taken: Set<string>): Profile => {
   let id = newId();
   while (taken.has(id)) id = newId();
@@ -52,7 +59,7 @@ const copyOf = (record: Profile, now: Date, taken: Set<string>): Profile => {
   return {
     ...record,
     id,
-    name: `${record.name} (imported)`,
+    name: record.name.endsWith(IMPORTED_SUFFIX) ? record.name : `${record.name}${IMPORTED_SUFFIX}`,
     createdAt: record.createdAt,
     updatedAt: now.toISOString(),
   };
@@ -60,7 +67,12 @@ const copyOf = (record: Profile, now: Date, taken: Set<string>): Profile => {
 
 export function mergeImport(current: Profile[], incoming: Profile[], now = new Date()): MergeResult {
   const byId = new Map(current.map((p) => [p.id, p]));
+  // Every id in play is reserved before any copy is named: the store's ids *and* the file's own ids,
+  // including ones further down the file. A generated `imported-1` used to be handed out while the file
+  // still carried a record under that same id, so two writes shared a key and the later one won silently,
+  // which is the exact loss this policy exists to prevent.
   const taken = new Set(current.map((p) => p.id));
+  for (const record of incoming) taken.add(record.id);
   // The first record seen for each id in this file, so a repeat can be compared and reported honestly.
   const seenIncoming = new Map<string, Profile>();
   const toWrite: Profile[] = [];

@@ -68,6 +68,16 @@ partly answered profile, `pos-missing` reported 3.3 instead of 5, and because th
 set. The regression test derives the expected value from `scoreProfile` and the returned findings, so it
 states the contract rather than copying a constant.
 
+**TD-16 A generated copy id could collide with an id the file carried (GP-018). RESOLVED.** The merge
+policy reserved the store's ids before naming a copy, but not the ids inside the file being imported. A
+file that already contained `imported-1` (the name this app gives copies, so a re-imported export can
+carry it) therefore received a fresh copy under that same id, and the later write replaced the earlier one
+while the summary reported both. Every id in the file is now reserved before any copy is named, so a
+generated key can only take an id nothing else in the merge uses. The copy name is also marked once:
+importing an already imported copy used to stack the suffix into `Studio (imported) (imported)
+(imported)`. Three tests in `lib/import.test.ts`, one of which asserts no two writes in a merge share a
+key.
+
 ## Maintainability
 **TD-14 Unreadable saved data read as an empty store (GP-016). RESOLVED.** `readFallback` swallowed a
 parse error and returned `[]`, so a corrupt store looked exactly like a fresh install: the app showed the
@@ -124,4 +134,4 @@ reason instead of being partially imported. Tests in `lib/storage.test.ts`.
    checklist for any change to `DIMENSIONS` or the question weights.
 
 Resolved so far: TD-3 (code half), TD-4, TD-5, TD-6, TD-7, TD-8, TD-9, TD-10, TD-11, TD-12, TD-13,
-TD-14, TD-15.
+TD-14, TD-15, TD-16.

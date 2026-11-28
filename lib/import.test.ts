@@ -94,3 +94,39 @@ describe("import policy", () => {
     expect(describeMerge(repeated)).toContain("the file repeated its id");
   });
 });
+
+describe("a generated copy never takes an id the file already carries", () => {
+  const now = new Date("2026-11-28T00:00:00Z");
+  const p = (id: string, name: string) => ({ ...emptyProfile(), id, name });
+
+  it("skips a reserved id instead of handing out a duplicate key", () => {
+    const current = [p("a", "Local A")];
+    const incoming = [p("a", "Incoming A"), p("imported-1", "Carried copy")];
+    const result = mergeImport(current, incoming, now);
+    const ids = result.toWrite.map((r) => r.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    // The file's own record keeps its id; the copy is the one that moves.
+    expect(ids).toContain("imported-1");
+    expect(result.duplicated).toBe(1);
+    expect(result.added).toBe(1);
+  });
+
+  it("marks a copy once, however many times it is imported", () => {
+    const current = [p("a", "Studio")];
+    const incoming = [p("a", "Studio renamed")];
+    const first = mergeImport(current, incoming, now);
+    expect(first.toWrite[0].name).toBe("Studio renamed (imported)");
+
+    const second = mergeImport(current, first.toWrite, now);
+    expect(second.toWrite[0].name).toBe("Studio renamed (imported)");
+  });
+
+  it("still keeps two distinct copies of one id under distinct keys", () => {
+    const current = [p("a", "Local A")];
+    const incoming = [p("a", "One"), p("a", "Two")];
+    const result = mergeImport(current, incoming, now);
+    const ids = result.toWrite.map((r) => r.id);
+    expect(ids).toHaveLength(2);
+    expect(new Set(ids).size).toBe(2);
+  });
+});
